@@ -18,6 +18,10 @@ public class Resource {
     @Column(name = "file_url", nullable = false, length = 255)
     private String fileUrl;
 
+    // [BỔ SUNG] Lưu ID của file trên Cloudinary để sau này gọi API xóa
+    @Column(name = "public_id", length = 255)
+    private String publicId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "uploaded_by", nullable = false)
     private User uploadedBy;

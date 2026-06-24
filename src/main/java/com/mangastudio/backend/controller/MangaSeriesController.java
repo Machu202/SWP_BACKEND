@@ -1,6 +1,7 @@
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
+import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.MangaSeriesService;
@@ -20,7 +21,6 @@ public class MangaSeriesController {
 
     private final MangaSeriesService mangaSeriesService;
 
-    // Mangaka tạo dự án truyện mới
     @PostMapping
     public ResponseEntity<MangaSeriesResponse> createSeries(
             Authentication authentication,
@@ -33,7 +33,6 @@ public class MangaSeriesController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // Lấy danh sách truyện do mình làm tác giả
     @GetMapping("/my-series")
     public ResponseEntity<List<MangaSeriesResponse>> getMySeries(Authentication authentication) {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
@@ -43,14 +42,12 @@ public class MangaSeriesController {
         return ResponseEntity.ok(responses);
     }
 
-    // Lấy chi tiết 1 bộ truyện theo ID
     @GetMapping("/{id}")
     public ResponseEntity<MangaSeriesResponse> getSeriesById(@PathVariable Long id) {
         MangaSeriesResponse response = mangaSeriesService.getSeriesById(id);
         return ResponseEntity.ok(response);
     }
 
-    // Đổi trạng thái bộ truyện (ví dụ: Draft -> Reviewing)
     @PatchMapping("/{id}/status")
     public ResponseEntity<MangaSeriesResponse> updateSeriesStatus(
             @PathVariable Long id,
@@ -58,5 +55,32 @@ public class MangaSeriesController {
         
         MangaSeriesResponse response = mangaSeriesService.updateSeriesStatus(id, newStatus);
         return ResponseEntity.ok(response);
+    }
+
+    // [BỔ SUNG] Cập nhật Metadata của dự án
+    @PutMapping("/{id}")
+    public ResponseEntity<MangaSeriesResponse> updateSeriesMetadata(
+            @PathVariable Long id,
+            Authentication authentication,
+            @RequestBody MangaSeriesUpdateRequest request) {
+        
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        Long currentUserId = userDetails.getId();
+        
+        MangaSeriesResponse response = mangaSeriesService.updateSeriesMetadata(id, currentUserId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    // [BỔ SUNG] Xóa dự án nháp
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteSeries(
+            @PathVariable Long id,
+            Authentication authentication) {
+        
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        Long currentUserId = userDetails.getId();
+        
+        mangaSeriesService.deleteSeries(id, currentUserId);
+        return ResponseEntity.ok("Manga Series deleted successfully.");
     }
 }

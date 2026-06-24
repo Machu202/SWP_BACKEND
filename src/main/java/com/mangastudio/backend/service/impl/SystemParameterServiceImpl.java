@@ -6,7 +6,6 @@ import com.mangastudio.backend.service.SystemParameterService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 
 @Service
@@ -26,6 +25,23 @@ public class SystemParameterServiceImpl implements SystemParameterService {
                 .orElseThrow(() -> new RuntimeException("Error: Parameter key not found: " + key));
     }
 
+    // [BỔ SUNG] Triển khai tạo mới
+    @Override
+    @Transactional
+    public SystemParameter createParameter(String key, String value) {
+        // Kiểm tra xem Key đã tồn tại trong Database chưa
+        if (parameterRepository.findByParamKey(key).isPresent()) {
+            throw new RuntimeException("Error: Parameter key already exists: " + key);
+        }
+        
+        SystemParameter newParam = SystemParameter.builder()
+                .paramKey(key)
+                .paramValue(value)
+                .build();
+                
+        return parameterRepository.save(newParam);
+    }
+
     @Override
     @Transactional
     public SystemParameter updateParameter(String key, String value) {
@@ -34,5 +50,15 @@ public class SystemParameterServiceImpl implements SystemParameterService {
         
         parameter.setParamValue(value);
         return parameterRepository.save(parameter);
+    }
+
+    // [BỔ SUNG] Triển khai xóa
+    @Override
+    @Transactional
+    public void deleteParameter(String key) {
+        SystemParameter parameter = parameterRepository.findByParamKey(key)
+                .orElseThrow(() -> new RuntimeException("Error: Parameter key not found: " + key));
+                
+        parameterRepository.delete(parameter);
     }
 }

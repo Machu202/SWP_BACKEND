@@ -5,7 +5,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "[User]") // Sử dụng ngoặc vuông vì User là keyword trong SQL
+@Table(name = "[User]") 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class User {
 
@@ -35,4 +35,9 @@ public class User {
     @Column(name = "created_at")
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    // [BỔ SUNG FE-03] Biến kiểm soát trạng thái khóa/mở của tài khoản
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
 }

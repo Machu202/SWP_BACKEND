@@ -24,11 +24,12 @@ public class UserDetailsImpl implements UserDetails {
     @JsonIgnore
     private String password;
 
+    // [BỔ SUNG FE-03]
+    private boolean isActive;
+
     private Collection<? extends GrantedAuthority> authorities;
 
-    // Factory method to map our custom User entity to Spring's UserDetails
     public static UserDetailsImpl build(User user) {
-        // Map the single Role to GrantedAuthority
         List<GrantedAuthority> authorities = List.of(
                 new SimpleGrantedAuthority("ROLE_" + user.getRole().getRoleName().toUpperCase())
         );
@@ -37,27 +38,21 @@ public class UserDetailsImpl implements UserDetails {
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
-                user.getPasswordHash(), // Ensure this points to your hashed password field
+                user.getPasswordHash(),
+                user.getIsActive(), // Truyền trạng thái vào đây
                 authorities
         );
     }
 
     @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return authorities;
-    }
+    public Collection<? extends GrantedAuthority> getAuthorities() { return authorities; }
 
     @Override
-    public String getPassword() {
-        return password;
-    }
+    public String getPassword() { return password; }
 
     @Override
-    public String getUsername() {
-        return username;
-    }
+    public String getUsername() { return username; }
 
-    // Default implementations for account status
     @Override
     public boolean isAccountNonExpired() { return true; }
 
@@ -67,8 +62,9 @@ public class UserDetailsImpl implements UserDetails {
     @Override
     public boolean isCredentialsNonExpired() { return true; }
 
+    // [BỔ SUNG FE-03] Chốt chặn Security: Trả về false sẽ lập tức cấm User đăng nhập
     @Override
-    public boolean isEnabled() { return true; }
+    public boolean isEnabled() { return isActive; }
 
     @Override
     public boolean equals(Object o) {

@@ -6,6 +6,7 @@ import com.mangastudio.backend.repository.NotificationRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,9 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    
+    // [BỔ SUNG FE-09] Cỗ máy chuyên dụng để gửi tin nhắn WebSocket
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
@@ -33,13 +37,21 @@ public class NotificationServiceImpl implements NotificationService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return notificationRepository.save(notification);
+        // 1. Lưu thông báo vào Database
+        Notification savedNotification = notificationRepository.save(notification);
+
+        // 2. [FE-09] Bắn thông báo Real-time đích danh tới User ID
+        // Frontend sẽ lắng nghe ở kênh: /topic/notifications/{userId}
+        String destination = "/topic/notifications/" + userId;
+        messagingTemplate.convertAndSend(destination, savedNotification);
+        
+        System.out.println(">>> [WEBSOCKET] Fired Real-time notification: " + destination);
+
+        return savedNotification;
     }
 
     @Override
     public List<Notification> getUnreadNotifications(Long userId) {
-        // Fallback filtering using Streams. 
-        // Best practice: Add 'findByUserIdAndIsReadFalse' to NotificationRepository later.
         return notificationRepository.findAll().stream()
                 .filter(notif -> notif.getUser().getId().equals(userId) && !notif.getIsRead())
                 .collect(Collectors.toList());

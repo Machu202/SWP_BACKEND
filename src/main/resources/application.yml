@@ -1,12 +1,16 @@
 server:
   port: 8080 # Cổng mặc định của Backend
 
-# Các cấu hình cũ của bạn (spring, server, mail...) vẫn giữ nguyên ở trên
-# ...
 manga:
   app:
-    jwtSecret: NGVwYjN6YzhxMnB4OXU1aWp2bThkaWZrNnBoMmduOHltdmwycTM4ajYxazA= 
+    jwtSecret: ${JWT_SECRET} # Lỗ hổng đã được bít kín
     jwtExpirationMs: 86400000
+    googleClientId: ${GOOGLE_CLIENT_ID}
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME}
+  api-key: ${CLOUDINARY_API_KEY}
+  api-secret: ${CLOUDINARY_API_SECRET}
 
 spring:
   datasource:

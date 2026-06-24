@@ -3,6 +3,7 @@ package com.mangastudio.backend.controller;
 import com.mangastudio.backend.entity.SystemParameter;
 import com.mangastudio.backend.service.SystemParameterService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +29,16 @@ public class SystemParameterController {
         return ResponseEntity.ok(parameterService.getParameterByKey(key));
     }
 
+    // [BỔ SUNG] Tạo mới cấu hình (Chỉ Admin)
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<SystemParameter> createParameter(
+            @RequestParam String key, 
+            @RequestParam String value) {
+        SystemParameter newParam = parameterService.createParameter(key, value);
+        return ResponseEntity.status(HttpStatus.CREATED).body(newParam);
+    }
+
     // Chỉ Admin mới có quyền cập nhật tham số hệ thống
     @PutMapping("/{key}")
     @PreAuthorize("hasRole('ADMIN')") 
@@ -35,5 +46,13 @@ public class SystemParameterController {
             @PathVariable String key, 
             @RequestParam String value) {
         return ResponseEntity.ok(parameterService.updateParameter(key, value));
+    }
+
+    // [BỔ SUNG] Xóa cấu hình (Chỉ Admin)
+    @DeleteMapping("/{key}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> deleteParameter(@PathVariable String key) {
+        parameterService.deleteParameter(key);
+        return ResponseEntity.ok("System parameter '" + key + "' deleted successfully.");
     }
 }

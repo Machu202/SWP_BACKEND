@@ -14,4 +14,5 @@ public class UserProfileResponse {
     private String fullName;
     private String roleName;
     private String profileData;
+    private Boolean isActive; // [BỔ SUNG FE-03]
 }

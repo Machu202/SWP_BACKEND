@@ -1,5 +1,7 @@
 package com.mangastudio.backend.service.impl;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.mangastudio.backend.entity.Resource;
 import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.ResourceRepository;
@@ -8,17 +10,11 @@ import com.mangastudio.backend.service.ResourceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -26,7 +22,7 @@ public class ResourceServiceImpl implements ResourceService {
 
     private final ResourceRepository resourceRepository;
     private final UserRepository userRepository;
-    private final String UPLOAD_DIR = "uploads";
+    private final Cloudinary cloudinary;
 
     @Override
     @Transactional
@@ -35,37 +31,55 @@ public class ResourceServiceImpl implements ResourceService {
                 .orElseThrow(() -> new RuntimeException("Error: User not found"));
 
         try {
-            // 1. Create upload directory if it does not exist
-            Path uploadPath = Paths.get(UPLOAD_DIR);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
+            Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
+                    "resource_type", "auto",
+                    "folder", "mangastudio_resources"
+            ));
 
-            // 2. Generate a unique file name to prevent overwriting
-            String originalFileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
-            String fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
-            String uniqueFileName = UUID.randomUUID().toString() + fileExtension;
+            String secureFileUrl = uploadResult.get("secure_url").toString();
+            String publicId = uploadResult.get("public_id").toString(); // Lấy ID định danh trên mây
 
-            // 3. Save the file to the local file system
-            Path filePath = uploadPath.resolve(uniqueFileName);
-            try (InputStream inputStream = file.getInputStream()) {
-                Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            // 4. Generate the URL to access the file (Assuming backend runs on localhost:8080)
-            String fileUrl = "http://localhost:8080/uploads/" + uniqueFileName;
-
-            // 5. Save the record in the Database
             Resource resource = Resource.builder()
                     .resourceType(resourceType)
-                    .fileUrl(fileUrl)
+                    .fileUrl(secureFileUrl)
+                    .publicId(publicId) // Lưu vào SQL
                     .uploadedBy(uploader)
                     .build();
 
             return resourceRepository.save(resource);
 
         } catch (IOException ex) {
-            throw new RuntimeException("Could not store file. Please try again!", ex);
+            throw new RuntimeException("Could not upload file to Cloudinary. Please try again!", ex);
+        }
+    }
+
+    @Override
+    public List<Resource> getAllResources() {
+        return resourceRepository.findAll();
+    }
+
+    @Override
+    @Transactional
+    public void deleteResource(Long resourceId, Long currentUserId) {
+        Resource resource = resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new RuntimeException("Error: Resource not found"));
+
+        // Khóa bảo mật: Chỉ người tải file lên mới được quyền xóa
+        if (!resource.getUploadedBy().getId().equals(currentUserId)) {
+            throw new RuntimeException("Error: You do not have permission to delete this resource");
+        }
+
+        try {
+            // 1. Phá hủy file vật lý trên máy chủ Cloudinary
+            if (resource.getPublicId() != null) {
+                cloudinary.uploader().destroy(resource.getPublicId(), ObjectUtils.emptyMap());
+            }
+            
+            // 2. Xóa bản ghi trong Database của chúng ta
+            resourceRepository.delete(resource);
+
+        } catch (IOException ex) {
+            throw new RuntimeException("Error: Failed to delete file from Cloudinary", ex);
         }
     }
 }

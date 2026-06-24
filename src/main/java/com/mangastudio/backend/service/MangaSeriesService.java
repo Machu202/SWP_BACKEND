@@ -1,6 +1,7 @@
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
+import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
 import java.util.List;
 
@@ -9,4 +10,8 @@ public interface MangaSeriesService {
     MangaSeriesResponse getSeriesById(Long seriesId);
     List<MangaSeriesResponse> getAllSeriesByMangaka(Long mangakaId);
     MangaSeriesResponse updateSeriesStatus(Long seriesId, String newStatus);
+    
+    // [BỔ SUNG] Cập nhật thông tin truyện và Xóa truyện
+    MangaSeriesResponse updateSeriesMetadata(Long seriesId, Long currentUserId, MangaSeriesUpdateRequest request);
+    void deleteSeries(Long seriesId, Long currentUserId);
 }

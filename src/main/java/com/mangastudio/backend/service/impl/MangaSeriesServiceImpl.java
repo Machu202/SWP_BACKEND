@@ -1,6 +1,7 @@
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
+import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
 import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.entity.User;
@@ -28,13 +29,12 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         User mangaka = userRepository.findById(mangakaId)
                 .orElseThrow(() -> new RuntimeException("Error: Mangaka not found with ID: " + mangakaId));
 
-        // Note: New series start with "Draft" status, Tantou is null until assigned
         MangaSeries newSeries = MangaSeries.builder()
                 .mangaka(mangaka)
                 .title(request.getTitle())
                 .genre(request.getGenre())
                 .summary(request.getSummary())
-                .status("Draft")
+                .status("DRAFT")
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -51,36 +51,107 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
     @Override
     public List<MangaSeriesResponse> getAllSeriesByMangaka(Long mangakaId) {
-        // You will need to add findByMangakaId in MangaSeriesRepository for this to work natively,
-        // or filter it here. Assuming we add it to the repository later.
-        User mangaka = userRepository.findById(mangakaId)
+        userRepository.findById(mangakaId)
                 .orElseThrow(() -> new RuntimeException("Error: Mangaka not found"));
-                
-        // Fallback using streams if repository method isn't created yet
-        return mangaSeriesRepository.findAll().stream()
-                .filter(series -> series.getMangaka().getId().equals(mangakaId))
+
+        return mangaSeriesRepository.findByMangakaId(mangakaId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public MangaSeriesResponse updateSeriesStatus(Long seriesId, String newStatus) {
+    public MangaSeriesResponse updateSeriesStatus(Long seriesId, String newStatusStr) {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
-        
-        // State Machine Logic: You can add validation here to ensure valid transitions 
-        // (e.g., Draft -> Reviewing -> Ongoing)
+
+        String currentStatus = series.getStatus();
+        String newStatus = newStatusStr.toUpperCase();
+        String normalizedCurrentStatus = (currentStatus != null) ? currentStatus.toUpperCase() : "DRAFT";
+
+        boolean isValidTransition = false;
+
+        switch (normalizedCurrentStatus) {
+            case "DRAFT":
+                if (newStatus.equals("REVIEWING")) isValidTransition = true;
+                break;
+            case "REVIEWING":
+                if (newStatus.equals("APPROVED") || newStatus.equals("REJECTED")) isValidTransition = true;
+                break;
+            case "REJECTED":
+                if (newStatus.equals("DRAFT")) isValidTransition = true;
+                break;
+            case "APPROVED":
+                if (newStatus.equals("ONGOING")) isValidTransition = true;
+                break;
+            case "ONGOING":
+                if (newStatus.equals("COMPLETED") || newStatus.equals("HIATUS")) isValidTransition = true;
+                break;
+            case "HIATUS":
+                if (newStatus.equals("ONGOING") || newStatus.equals("CANCELLED")) isValidTransition = true;
+                break;
+            case "COMPLETED":
+            case "CANCELLED":
+                isValidTransition = false;
+                break;
+            default:
+                if (newStatus.equals("DRAFT")) isValidTransition = true;
+        }
+
+        if (!isValidTransition) {
+            throw new RuntimeException("Error: Invalid state transition! Cannot move from " 
+                    + normalizedCurrentStatus + " to " + newStatus);
+        }
+
         series.setStatus(newStatus);
+        MangaSeries updatedSeries = mangaSeriesRepository.save(series);
         
+        return mapToResponse(updatedSeries);
+    }
+
+    // [BỔ SUNG] Cập nhật thông tin (Metadata)
+    @Override
+    @Transactional
+    public MangaSeriesResponse updateSeriesMetadata(Long seriesId, Long currentUserId, MangaSeriesUpdateRequest request) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+
+        // Xác thực quyền sở hữu
+        if (!series.getMangaka().getId().equals(currentUserId)) {
+            throw new RuntimeException("Error: You do not have permission to modify this series");
+        }
+
+        if (request.getTitle() != null && !request.getTitle().isBlank()) series.setTitle(request.getTitle());
+        if (request.getGenre() != null) series.setGenre(request.getGenre());
+        if (request.getSummary() != null) series.setSummary(request.getSummary());
+
         MangaSeries updatedSeries = mangaSeriesRepository.save(series);
         return mapToResponse(updatedSeries);
     }
 
-    // Helper method to convert Entity to Response DTO
+    // [BỔ SUNG] Xóa dự án truyện
+    @Override
+    @Transactional
+    public void deleteSeries(Long seriesId, Long currentUserId) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+
+        // Xác thực quyền sở hữu
+        if (!series.getMangaka().getId().equals(currentUserId)) {
+            throw new RuntimeException("Error: You do not have permission to delete this series");
+        }
+        
+        // Khóa an toàn: Chỉ được xóa bản nháp
+        if (!"DRAFT".equals(series.getStatus())) {
+            throw new RuntimeException("Error: Cannot delete series. Only projects in 'DRAFT' status can be deleted.");
+        }
+
+        mangaSeriesRepository.delete(series);
+    }
+
     private MangaSeriesResponse mapToResponse(MangaSeries series) {
         String tantouName = (series.getTantou() != null) ? series.getTantou().getFullName() : "Unassigned";
-        
+
         return MangaSeriesResponse.builder()
                 .id(series.getId())
                 .title(series.getTitle())
