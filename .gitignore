@@ -41,3 +41,13 @@ uploads/
 target/
 .env
 uploads/
+
+# Tránh đẩy file rác của Java/Maven lên làm nặng GitHub
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+/backends.iml
+.idea/
+.settings/
+.classpath
+.project
+.factorypath
