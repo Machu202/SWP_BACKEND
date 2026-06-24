@@ -8,35 +8,34 @@ import java.time.LocalDateTime;
 @Table(name = "Task")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Task {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long taskId;
 
-    @Column(name = "page_id", nullable = false)
-    private Long pageId;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column(name = "mangaka_id", nullable = false)
-    private Long mangakaId; 
+    // Quan hệ 1-1 với Hitbox: Mỗi Hitbox là một Task
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hitbox_id", nullable = false, unique = true)
+    private Hitbox hitbox;
 
-    @Column(name = "assistant_id", nullable = false)
-    private Long assistantId; 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "mangaka_id", nullable = false)
+    private User mangaka;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 50, nullable = false)
-    private TaskStatus status;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assistant_id") // Có thể null nếu chưa ai nhận
+    private User assistant;
 
-    @Column(name = "task_desc", columnDefinition = "TEXT", nullable = false)
-    private String taskDesc;
+    @Column(length = 50)
+    private String status; // Todo, Doing, Reviewing, Approved
 
-    // Coordinates float (0.0 -> 1.0)
-    private Double xNorm;
-    private Double yNorm;
-    private Double widthNorm;
-    private Double heightNorm;
+    @Column(columnDefinition = "NVARCHAR(MAX)", nullable = false)
+    private String description;
 
-    @Column(name = "submitted_image_url", length = 500)
-    private String submittedImageUrl; 
+    @Column(name = "submitted_image_url", length = 255)
+    private String submittedImageUrl;
 
-    private LocalDateTime deadline;
-
-    public enum TaskStatus { TODO, DOING, REVIEWING, REJECTED, APPROVED }
+    @Column(name = "created_at")
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

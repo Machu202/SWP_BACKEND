@@ -3,32 +3,43 @@ package com.mangastudio.backend.listener;
 import com.mangastudio.backend.entity.Page;
 import com.mangastudio.backend.entity.PageVersion;
 import com.mangastudio.backend.repository.PageVersionRepository;
-import jakarta.persistence.PreUpdate;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+import jakarta.persistence.PostPersist;
+import jakarta.persistence.PostUpdate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor // <--- 1. Gắn bùa Lombok
 public class PageVersioningListener {
 
-    // 2. Chuyển thành private final, TIỄN @Autowired VÀO DĨ VÃNG
-    private final ObjectProvider<PageVersionRepository> versionRepoProvider;
+    @Autowired
+    @Lazy
+    private PageVersionRepository pageVersionRepository;
+    
+    @PostPersist
+    @PostUpdate
+    public void savePageSnapshot(Page page) {
+        
+        PageVersion newVersion = new PageVersion();
+        newVersion.setPage(page);
+        newVersion.setImageUrl(page.getImageUrl());
+        newVersion.setCreatedAt(LocalDateTime.now());
 
-    @PreUpdate
-    public void captureSnapshotBeforeUpdate(Page page) {
-        versionRepoProvider.ifAvailable(repo -> {
-            PageVersion snapshot = PageVersion.builder()
-                    .pageId(page.getPageId())
-                    .versionTag("v-auto-" + UUID.randomUUID().toString().substring(0, 5))
-                    .commitMessage("System auto-backup before overwrite")
-                    .oldImageUrl(page.getImageUrl())
-                    .createdAt(LocalDateTime.now())
-                    .build();
-            repo.save(snapshot);
-        });
+        // BỔ SUNG: Logic tự động đếm số lượng phiên bản hiện có và cộng thêm 1
+        // Ví dụ: Đã có 2 bản, thì bản mới lưu này sẽ là version_number = 3
+        try {
+            int currentVersionsCount = pageVersionRepository.countByPageId(page.getId());
+            newVersion.setVersionNumber(currentVersionsCount + 1);
+        } catch (Exception e) {
+            // Nếu có lỗi lúc đếm (hoặc chưa có hàm), mặc định là 1
+            newVersion.setVersionNumber(1);
+        }
+
+        pageVersionRepository.save(newVersion);
+        
+        System.out.println(">>> [VERSIONING LISTENER] Đã tự động sao lưu Version " 
+                + newVersion.getVersionNumber() + " cho Page ID: " + page.getId());
     }
 }

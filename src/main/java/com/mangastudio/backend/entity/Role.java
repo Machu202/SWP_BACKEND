@@ -1,15 +1,17 @@
 package com.mangastudio.backend.entity;
+
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 
 @Entity
-@Table(name = "roles")
-@Data
+@Table(name = "Role")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Role {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "role_name", nullable = false, unique = true, length = 50)
     private String roleName;
 }

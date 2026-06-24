@@ -34,3 +34,10 @@ build/
 
 #Protect Enviornment Variables
 .env
+
+# Ignore uploaded files
+uploads/
+
+target/
+.env
+uploads/

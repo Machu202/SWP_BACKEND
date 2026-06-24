@@ -3,23 +3,33 @@ package com.mangastudio.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.List;
+
 @Entity
-@Table(name = "Page")
+@Table(name = "pages") // Chuyển thành số nhiều cho chuẩn quy tắc Database
 @EntityListeners(com.mangastudio.backend.listener.PageVersioningListener.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Page {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long pageId;
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column(name = "chapter_id", nullable = false)
-    private Long chapterId; 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chapter_id", nullable = false)
+    private Chapter chapter;
 
     @Column(name = "page_number", nullable = false)
     private Integer pageNumber;
 
-    @Column(name = "image_url", length = 500, nullable = false)
+    @Column(name = "image_url", length = 255, nullable = false)
     private String imageUrl;
 
     private Double width;
+    
     private Double height;
+
+    // BỔ SUNG: Mối quan hệ để lấy ra toàn bộ lịch sử của trang này
+    @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<PageVersion> versions;
 }

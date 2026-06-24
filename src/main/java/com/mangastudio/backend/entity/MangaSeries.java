@@ -1,17 +1,25 @@
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "manga_series")
-@Data
+@Table(name = "Manga_Series")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class MangaSeries {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "series_id")
-    private Long seriesId;
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "mangaka_id", nullable = false)
+    private User mangaka;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tantou_id") // Có thể null nếu dự án mới chưa được phân công Tantou
+    private User tantou;
 
     @Column(nullable = false, length = 255)
     private String title;
@@ -19,24 +27,13 @@ public class MangaSeries {
     @Column(length = 100)
     private String genre;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "NVARCHAR(MAX)")
     private String summary;
 
     @Column(length = 50)
     private String status;
 
-    // ==========================================
-    // FOREIGN KEYS (RELATIONSHIPS)
-    // ==========================================
-    
-    // Links to the User table for the Main Author (Mangaka)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "mangaka_id", nullable = false)
-    private User mangaka;
-
-    // Links to the User table for the Assigned Editor (Tantou Editor)
-    // This is nullable because a draft might not have a Tantou assigned yet
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tantou_id", nullable = true)
-    private User tantou;
+    @Column(name = "created_at")
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

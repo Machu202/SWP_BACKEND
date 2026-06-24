@@ -1,35 +1,38 @@
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
-@Data
+@Table(name = "[User]") // Sử dụng ngoặc vuông vì User là keyword trong SQL
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class User {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long userId;
+    private Long id;
 
-    @Column(nullable = false, unique = true)
-    private String username;
-
-    @Column(nullable = false)
-    private String password;
-
-    @Column(nullable = false, unique = true)
-    private String email;
-
-    // Liên kết khóa ngoại N-1 với bảng Role
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
-    // ... existing fields (userId, username, password, email, role)
+    @Column(nullable = false, unique = true, length = 100)
+    private String username;
 
-    @Column(name = "otp_code", length = 6)
-    private String otpCode;
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
 
-    @Column(name = "otp_expiration")
-    private java.time.LocalDateTime otpExpiration;
+    @Column(nullable = false, unique = true, length = 150)
+    private String email;
+
+    @Column(name = "full_name", length = 255)
+    private String fullName;
+
+    @Column(name = "profile_data", columnDefinition = "NVARCHAR(MAX)")
+    private String profileData;
+
+    @Column(name = "created_at")
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
 }
