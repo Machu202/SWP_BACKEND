@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -82,5 +83,14 @@ public class MangaSeriesController {
         
         mangaSeriesService.deleteSeries(id, currentUserId);
         return ResponseEntity.ok("Manga Series deleted successfully.");
+    }
+    @PatchMapping("/{id}/admin-decision")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<MangaSeriesResponse> adminApprove(
+            @PathVariable Long id,
+            @RequestParam boolean isApproved) {
+        
+        MangaSeriesResponse response = mangaSeriesService.adminApproveSeries(id, isApproved);
+        return ResponseEntity.ok(response);
     }
 }

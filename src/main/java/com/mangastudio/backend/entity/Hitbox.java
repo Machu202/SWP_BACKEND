@@ -1,5 +1,7 @@
 package com.mangastudio.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -14,6 +16,7 @@ public class Hitbox {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "page_id", nullable = false)
+    @JsonIgnore
     private Page page;
 
     @ManyToOne(fetch = FetchType.LAZY)

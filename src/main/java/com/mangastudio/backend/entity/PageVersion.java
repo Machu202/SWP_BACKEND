@@ -5,6 +5,8 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "page_versions")
 @Getter 
@@ -21,6 +23,7 @@ public class PageVersion {
     // Many versions belong to one specific page
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "page_id", nullable = false)
+    @JsonIgnore
     private Page page;
 
     @Column(name = "image_url", length = 255, nullable = false)

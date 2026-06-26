@@ -4,7 +4,7 @@ server:
 manga:
   app:
     jwtSecret: ${JWT_SECRET} # Lỗ hổng đã được bít kín
-    jwtExpirationMs: 86400000
+    jwtExpirationMs: 
     googleClientId: ${GOOGLE_CLIENT_ID}
 
 cloudinary:

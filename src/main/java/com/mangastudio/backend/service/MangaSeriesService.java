@@ -14,4 +14,6 @@ public interface MangaSeriesService {
     // [BỔ SUNG] Cập nhật thông tin truyện và Xóa truyện
     MangaSeriesResponse updateSeriesMetadata(Long seriesId, Long currentUserId, MangaSeriesUpdateRequest request);
     void deleteSeries(Long seriesId, Long currentUserId);
+    // [FE-17] Khai báo hàm Admin chốt duyệt cuối cùng
+    MangaSeriesResponse adminApproveSeries(Long seriesId, boolean isApproved);
 }

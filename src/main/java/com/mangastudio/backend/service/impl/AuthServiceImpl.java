@@ -30,7 +30,6 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -48,7 +47,7 @@ public class AuthServiceImpl implements AuthService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder encoder;
     private final JwtUtils jwtUtils;
-    
+
     // Inject the necessary dependencies for OTP and Email
     private final OtpRepository otpRepository;
     private final JavaMailSender mailSender;
@@ -62,7 +61,6 @@ public class AuthServiceImpl implements AuthService {
         // 1. Verify username and password using Spring Security
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
-
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         String userEmail = userDetails.getEmail();
 
@@ -114,7 +112,7 @@ public class AuthServiceImpl implements AuthService {
         String jwt = jwtUtils.generateJwtToken(authentication);
 
         String role = userDetails.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
+                .map(auth -> auth.getAuthority())
                 .findFirst()
                 .orElse("ROLE_USER");
 
@@ -154,11 +152,11 @@ public class AuthServiceImpl implements AuthService {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(toEmail);
             message.setSubject("[MangaStudio] Your Login Security Code");
-            message.setText("Hello,\n\nYour One-Time Password (OTP) for login is: " + otpCode 
+            message.setText("Hello,\n\nYour One-Time Password (OTP) for login is: " + otpCode
                     + "\n\nThis code will expire in 5 minutes. Please do not share this code with anyone.\n\n"
                     + "If you did not request this code, please secure your account immediately.\n\n"
                     + "Best regards,\nMangaStudio Security System");
-            
+
             mailSender.send(message);
         } catch (Exception e) {
             System.err.println(">>> [EMAIL ERROR] Failed to send OTP email: " + e.getMessage());
@@ -171,7 +169,8 @@ public class AuthServiceImpl implements AuthService {
     public JwtResponse googleLogin(GoogleLoginRequest request) {
         try {
             // 1. Khởi tạo cỗ máy xác thực của Google
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(),
+                    new GsonFactory())
                     .setAudience(Collections.singletonList(googleClientId))
                     .build();
 
@@ -201,10 +200,12 @@ public class AuthServiceImpl implements AuthService {
                 Role defaultRole = roleRepository.findByRoleName("Mangaka")
                         .orElseThrow(() -> new RuntimeException("Error: Default role not found."));
 
-                // Tạo một mật khẩu ngẫu nhiên siêu khó để bảo vệ tài khoản (họ sẽ luôn đăng nhập qua Google)
+                // Tạo một mật khẩu ngẫu nhiên siêu khó để bảo vệ tài khoản (họ sẽ luôn đăng
+                // nhập qua Google)
                 String randomPassword = UUID.randomUUID().toString();
-                
-                // Cắt tên email ra làm username mặc định (Ví dụ: "ducky@gmail.com" -> "ducky_abcd")
+
+                // Cắt tên email ra làm username mặc định (Ví dụ: "ducky@gmail.com" ->
+                // "ducky_abcd")
                 String baseUsername = email.split("@")[0] + "_" + UUID.randomUUID().toString().substring(0, 4);
 
                 user = User.builder()
@@ -226,7 +227,7 @@ public class AuthServiceImpl implements AuthService {
 
             String jwt = jwtUtils.generateJwtToken(authentication);
             String role = userDetails.getAuthorities().stream()
-                    .map(GrantedAuthority::getAuthority)
+                    .map(auth -> auth.getAuthority())
                     .findFirst()
                     .orElse("ROLE_USER");
 

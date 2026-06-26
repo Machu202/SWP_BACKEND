@@ -11,6 +11,7 @@ import com.mangastudio.backend.service.MangaSeriesService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.mangastudio.backend.repository.BoardVoteRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +23,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
     private final MangaSeriesRepository mangaSeriesRepository;
     private final UserRepository userRepository;
+    private final BoardVoteRepository boardVoteRepository;
 
     @Override
     @Transactional
@@ -162,5 +164,31 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                 .tantouName(tantouName)
                 .createdAt(series.getCreatedAt())
                 .build();
+    }
+    // [FE-17] Triển khai logic phán quyết của Admin
+    @Override
+    @Transactional
+    public MangaSeriesResponse adminApproveSeries(Long seriesId, boolean isApproved) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+
+        // Khóa bảo vệ 1: Truyện phải đang ở giai đoạn REVIEWING mới được xét duyệt
+        if (!"REVIEWING".equalsIgnoreCase(series.getStatus())) {
+            throw new RuntimeException("Error: The series must be in 'REVIEWING' status for Admin decision.");
+        }
+
+        // Khóa bảo vệ 2: Nếu Admin bấm Đồng ý (true), kiểm tra xem Hội đồng có phiếu thuận nào không
+        if (isApproved) {
+            long approvedVotes = boardVoteRepository.countByMangaSeriesIdAndIsApproved(seriesId, true);
+            if (approvedVotes == 0) {
+                throw new RuntimeException("Error: Cannot approve! The Editorial Board has cast 0 approval votes for this project.");
+            }
+        }
+
+        // Chốt trạng thái: Đồng ý -> APPROVED | Từ chối -> REJECTED
+        series.setStatus(isApproved ? "APPROVED" : "REJECTED");
+        MangaSeries updatedSeries = mangaSeriesRepository.save(series);
+
+        return mapToResponse(updatedSeries);
     }
 }

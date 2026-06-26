@@ -2,6 +2,9 @@ package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.HitboxComment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
 
 public interface HitboxCommentRepository extends JpaRepository<HitboxComment, Long> {
+    // Lấy toàn bộ comment của một Hitbox, sắp xếp theo thời gian cũ -> mới
+    List<HitboxComment> findByHitboxIdOrderByCreatedAtAsc(Long hitboxId);
 }

@@ -1,5 +1,6 @@
 package com.mangastudio.backend.service;
 
+import com.mangastudio.backend.dto.response.CanvasInitResponse;
 import com.mangastudio.backend.entity.Hitbox;
 import com.mangastudio.backend.entity.Task;
 
@@ -15,4 +16,5 @@ public interface WorkspaceService {
     void deleteHitbox(Long hitboxId);
     
     Task assignTaskToHitbox(Long hitboxId, Long mangakaId, Task taskRequest);
+    CanvasInitResponse getCanvasInitData(Long pageId);
 }

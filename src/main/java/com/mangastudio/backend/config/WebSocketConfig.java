@@ -14,7 +14,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Mở cổng /ws cho Frontend kết nối. Cấu hình SockJS làm phương án dự phòng nếu trình duyệt cũ.
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:3000") // Đảm bảo khớp với URL của Frontend
+                .setAllowedOrigins("http://localhost:5173") // Đảm bảo khớp với URL của Frontend
                 .withSockJS();
     }
 

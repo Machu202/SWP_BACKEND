@@ -39,7 +39,6 @@ public class PageVersioningListener {
 
         pageVersionRepository.save(newVersion);
         
-        System.out.println(">>> [VERSIONING LISTENER] Đã tự động sao lưu Version " 
-                + newVersion.getVersionNumber() + " cho Page ID: " + page.getId());
+        System.out.println(">>> [VERSIONING LISTENER] Automatically backed up Version " + newVersion.getVersionNumber() + " for Page ID: " + page.getId());
     }
 }

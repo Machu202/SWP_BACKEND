@@ -5,6 +5,8 @@ import lombok.*;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "pages") // Chuyển thành số nhiều cho chuẩn quy tắc Database
 @EntityListeners(com.mangastudio.backend.listener.PageVersioningListener.class)
@@ -31,5 +33,6 @@ public class Page {
 
     // BỔ SUNG: Mối quan hệ để lấy ra toàn bộ lịch sử của trang này
     @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<PageVersion> versions;
 }
