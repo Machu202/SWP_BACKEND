@@ -33,7 +33,7 @@ public class TantouFeedback {
     @Column(nullable = false)
     private Double height;
 
-    @Column(columnDefinition = "NVARCHAR(MAX)", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
     @Column(name = "is_resolved")

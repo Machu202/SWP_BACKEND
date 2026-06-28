@@ -29,7 +29,7 @@ public class Task {
     @Column(length = 50)
     private String status; // Todo, Doing, Reviewing, Approved
 
-    @Column(columnDefinition = "NVARCHAR(MAX)", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String description;
 
     @Column(name = "submitted_image_url", length = 255)

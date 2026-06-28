@@ -3,21 +3,22 @@ server:
 
 manga:
   app:
-    jwtSecret: ${JWT_SECRET} # Lỗ hổng đã được bít kín
-    jwtExpirationMs: 
-    googleClientId: ${GOOGLE_CLIENT_ID}
+    jwtSecret: NGVwYjN6YzhxMnB4OXU1aWp2bThkaWZrNnBoMmduOHltdmwycTM4ajYxazA # ${JWT_SECRET}
+    jwtExpirationMs: 86400000
+    googleClientId: 351530225339-5iq6pdi3mdt1fjje0krodp07e18jmi19.apps.googleusercontent.com # ${GOOGLE_CLIENT_ID}
 
 cloudinary:
-  cloud-name: ${CLOUDINARY_CLOUD_NAME}
-  api-key: ${CLOUDINARY_API_KEY}
-  api-secret: ${CLOUDINARY_API_SECRET}
+  cloud-name: dt1stlhqc # ${CLOUDINARY_CLOUD_NAME}
+  api-key: 912788441748564 # ${CLOUDINARY_API_KEY}
+  api-secret: dmTXCWvYWMKHZgsQPvirbywk8Ps # ${CLOUDINARY_API_SECRET}
 
 spring:
   datasource:
-    url: jdbc:sqlserver://${DB_HOST}:${DB_PORT};databaseName=${DB_NAME};encrypt=true;trustServerCertificate=true
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    # Đường link kết nối trực tiếp đến máy chủ Supabase
+    url: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?user=postgres.qtmrecvimbofafyfesjg&password=n8fQh$-e7ELAwX$
+    username: postgres.qtmrecvimbofafyfesjg
+    password: n8fQh$-e7ELAwX$
+    driver-class-name: org.postgresql.Driver
   
   jpa:
     hibernate:
@@ -25,14 +26,15 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.SQLServerDialect
+        # Ép Hibernate chuyển sang nói ngôn ngữ PostgreSQL
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         '[format_sql]': true
 
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: lehoangem06092006 # ${MAIL_USERNAME}
+    password: qpjn foac zvqn goma # ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:

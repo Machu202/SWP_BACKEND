@@ -21,7 +21,7 @@ public class HitboxComment {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(columnDefinition = "NVARCHAR(MAX)", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
     @Column(name = "created_at")

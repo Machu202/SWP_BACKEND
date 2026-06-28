@@ -27,7 +27,7 @@ public class MangaSeries {
     @Column(length = 100)
     private String genre;
 
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column(columnDefinition = "TEXT")
     private String summary;
 
     @Column(length = 50)

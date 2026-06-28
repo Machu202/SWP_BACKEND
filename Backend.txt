@@ -1,6 +1,6 @@
  
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\BackendApplication.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\BackendApplication.java ===== 
 package com.mangastudio.backend;
 
 import org.springframework.boot.SpringApplication;
@@ -16,7 +16,7 @@ public class BackendApplication {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\component\DataSeeder.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\component\DataSeeder.java ===== 
 package com.mangastudio.backend.component;
 
 import com.mangastudio.backend.entity.Role;
@@ -54,7 +54,7 @@ public class DataSeeder implements CommandLineRunner {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\config\CloudinaryConfig.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\config\CloudinaryConfig.java ===== 
 package com.mangastudio.backend.config;
 
 import com.cloudinary.Cloudinary;
@@ -87,7 +87,7 @@ public class CloudinaryConfig {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\config\CorsConfig.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\config\CorsConfig.java ===== 
 package com.mangastudio.backend.config;
 
 import org.springframework.context.annotation.Bean;
@@ -114,7 +114,7 @@ public class CorsConfig {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\config\SecurityConfig.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\config\SecurityConfig.java ===== 
 package com.mangastudio.backend.config;
 
 import lombok.RequiredArgsConstructor;
@@ -190,7 +190,7 @@ public class SecurityConfig {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\config\SwaggerConfig.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\config\SwaggerConfig.java ===== 
 package com.mangastudio.backend.config;
 
 import io.swagger.v3.oas.models.Components;
@@ -226,7 +226,7 @@ public class SwaggerConfig {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\config\WebSocketConfig.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\config\WebSocketConfig.java ===== 
 package com.mangastudio.backend.config;
 
 import org.springframework.context.annotation.Configuration;
@@ -255,7 +255,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\AuthController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\AuthController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.request.GoogleLoginRequest;
@@ -264,11 +264,20 @@ import com.mangastudio.backend.dto.request.RegisterRequest;
 import com.mangastudio.backend.dto.request.VerifyOtpRequest;
 import com.mangastudio.backend.dto.response.JwtResponse;
 import com.mangastudio.backend.dto.response.MessageResponse;
+import com.mangastudio.backend.security.JwtUtils;
+import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -276,15 +285,51 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthenticationManager authenticationManager;
+    private final JwtUtils jwtUtils;
 
-    // Bước 1: Đăng nhập -> Trả về thông báo yêu cầu check Email (Không trả JWT nữa)
+    // ========================================================
+    // ĐÃ SỬA: ĐĂNG NHẬP TRẢ VỀ TOKEN TRỰC TIẾP, BỎ QUA OTP
+    // ========================================================
     @PostMapping("/login")
-    public ResponseEntity<MessageResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        MessageResponse response = authService.authenticateUserAndGenerateOtp(loginRequest);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+        
+        // 1. Kiểm tra tài khoản và mật khẩu
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+
+        // 2. Nếu mật khẩu ĐÚNG, lưu trạng thái vào Security Context
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        // 3. Tạo chìa khóa JWT Token ngay lập tức
+        String jwt = jwtUtils.generateJwtToken(authentication);
+
+        // 4. Lấy thông tin chi tiết của User
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        
+        // 5. Lấy Quyền (Role) của User để Frontend biết đường chuyển trang
+        String role = userDetails.getAuthorities().stream()
+                .findFirst()
+                .map(item -> item.getAuthority())
+                .orElse("Mangaka"); // Mặc định nếu lỗi phân quyền
+
+        // 6. Đóng gói dữ liệu trả thẳng về cho Frontend
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("token", jwt);
+        responseBody.put("role", role);
+        responseBody.put("username", userDetails.getUsername());
+        responseBody.put("email", userDetails.getEmail());
+        responseBody.put("message", "Đăng nhập thành công!");
+
+        // Trả về HTTP 200 OK kèm theo Token
+        return ResponseEntity.ok(responseBody);
     }
 
-    // Bước 2: Nhập OTP -> Trả về JWT Token
+    // ========================================================
+    // CÁC HÀM CŨ ĐƯỢC GIỮ NGUYÊN ĐỂ KHÔNG BỊ LỖI ĐỎ
+    // ========================================================
+
+    // Nhập OTP -> Trả về JWT Token (Giữ lại làm phương án dự phòng)
     @PostMapping("/verify-otp")
     public ResponseEntity<JwtResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
         JwtResponse response = authService.verifyOtpAndLogin(request);
@@ -297,7 +342,7 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    // Bước 3 của Auth Flow: Đăng nhập trực tiếp bằng Google OAuth2
+    // Đăng nhập trực tiếp bằng Google OAuth2
     @PostMapping("/google")
     public ResponseEntity<JwtResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
         JwtResponse response = authService.googleLogin(request);
@@ -305,7 +350,7 @@ public class AuthController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\BoardVoteController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\BoardVoteController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.response.BoardVoteSummaryResponse;
@@ -347,7 +392,7 @@ public class BoardVoteController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\ChapterController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\ChapterController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.request.ChapterCreateRequest;
@@ -413,7 +458,7 @@ public class ChapterController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\ChapterScriptController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\ChapterScriptController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.ChapterScript;
@@ -447,7 +492,7 @@ public class ChapterScriptController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\DeadlineEventController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\DeadlineEventController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.DeadlineEvent;
@@ -501,7 +546,7 @@ public class DeadlineEventController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\HitboxCommentController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\HitboxCommentController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.HitboxComment;
@@ -539,7 +584,7 @@ public class HitboxCommentController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\MangaSeriesController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\MangaSeriesController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
@@ -637,7 +682,7 @@ public class MangaSeriesController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\NotificationController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\NotificationController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.Notification;
@@ -673,7 +718,7 @@ public class NotificationController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\PageController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\PageController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.Page;
@@ -735,7 +780,7 @@ public class PageController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\PublishingScheduleController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\PublishingScheduleController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.request.PublishingScheduleRequest;
@@ -795,7 +840,7 @@ public class PublishingScheduleController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\ResourceController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\ResourceController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.Resource;
@@ -845,7 +890,7 @@ public class ResourceController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\SystemParameterController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\SystemParameterController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.SystemParameter;
@@ -905,7 +950,7 @@ public class SystemParameterController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\TantouFeedbackController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\TantouFeedbackController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.TantouFeedback;
@@ -956,7 +1001,7 @@ public class TantouFeedbackController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\TaskController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\TaskController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.Task;
@@ -1026,7 +1071,7 @@ public class TaskController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\TelemetryController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\TelemetryController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.TelemetryAnalytics;
@@ -1060,7 +1105,7 @@ public class TelemetryController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\UserController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\UserController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.request.UserProfileUpdateRequest;
@@ -1129,7 +1174,7 @@ public class UserController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\controller\WorkspaceController.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\WorkspaceController.java ===== 
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.response.CanvasInitResponse;
@@ -1198,7 +1243,7 @@ public class WorkspaceController {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\ChapterCreateRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\ChapterCreateRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
@@ -1220,7 +1265,7 @@ public class ChapterCreateRequest {
     private String title;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\GoogleLoginRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\GoogleLoginRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
@@ -1235,7 +1280,7 @@ public class GoogleLoginRequest {
     private String token;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\LoginRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\LoginRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
@@ -1253,7 +1298,7 @@ public class LoginRequest {
     private String password;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\MangaSeriesCreateRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\MangaSeriesCreateRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
@@ -1271,7 +1316,7 @@ public class MangaSeriesCreateRequest {
     private String summary;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\MangaSeriesUpdateRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\MangaSeriesUpdateRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import lombok.Getter;
@@ -1285,7 +1330,7 @@ public class MangaSeriesUpdateRequest {
     private String summary;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\PublishingScheduleRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\PublishingScheduleRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
@@ -1308,7 +1353,7 @@ public class PublishingScheduleRequest {
     private String frequency;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\RegisterRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\RegisterRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import jakarta.validation.constraints.Email;
@@ -1337,7 +1382,7 @@ public class RegisterRequest {
     private String role; // Ví dụ: "Mangaka", "Assistant", "Editorial Board"
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\UserProfileUpdateRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\UserProfileUpdateRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import lombok.Getter;
@@ -1353,7 +1398,7 @@ public class UserProfileUpdateRequest {
     private String profileData; 
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\request\VerifyOtpRequest.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\VerifyOtpRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
 import jakarta.validation.constraints.Email;
@@ -1373,7 +1418,7 @@ public class VerifyOtpRequest {
     private String otpCode;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\response\BoardVoteSummaryResponse.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\response\BoardVoteSummaryResponse.java ===== 
 package com.mangastudio.backend.dto.response;
 
 import lombok.Builder;
@@ -1390,7 +1435,7 @@ public class BoardVoteSummaryResponse {
     private long rejectedVotes;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\response\CanvasInitResponse.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\response\CanvasInitResponse.java ===== 
 package com.mangastudio.backend.dto.response;
 
 import com.mangastudio.backend.entity.Hitbox;
@@ -1415,7 +1460,7 @@ public class CanvasInitResponse {
     private List<Hitbox> hitboxes;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\response\ChapterResponse.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\response\ChapterResponse.java ===== 
 package com.mangastudio.backend.dto.response;
 
 import lombok.Builder;
@@ -1434,7 +1479,7 @@ public class ChapterResponse {
     private String publishStatus;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\response\JwtResponse.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\response\JwtResponse.java ===== 
 package com.mangastudio.backend.dto.response;
 
 import lombok.Getter;
@@ -1459,7 +1504,7 @@ public class JwtResponse {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\response\MangaSeriesResponse.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\response\MangaSeriesResponse.java ===== 
 package com.mangastudio.backend.dto.response;
 
 import lombok.Builder;
@@ -1481,7 +1526,7 @@ public class MangaSeriesResponse {
     private LocalDateTime createdAt;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\response\MessageResponse.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\response\MessageResponse.java ===== 
 package com.mangastudio.backend.dto.response;
 
 import lombok.AllArgsConstructor;
@@ -1495,7 +1540,7 @@ public class MessageResponse {
     private String message;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\dto\response\UserProfileResponse.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\response\UserProfileResponse.java ===== 
 package com.mangastudio.backend.dto.response;
 
 import lombok.Builder;
@@ -1515,7 +1560,7 @@ public class UserProfileResponse {
     private Boolean isActive; // [BỔ SUNG FE-03]
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\BoardVote.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\BoardVote.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1547,7 +1592,7 @@ public class BoardVote {
     private LocalDateTime createdAt = LocalDateTime.now();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\Chapter.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\Chapter.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1576,7 +1621,7 @@ public class Chapter {
     private String publishStatus;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\ChapterScript.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\ChapterScript.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1605,7 +1650,7 @@ public class ChapterScript {
     private LocalDateTime updatedAt = LocalDateTime.now();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\DeadlineEvent.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\DeadlineEvent.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1635,7 +1680,7 @@ public class DeadlineEvent {
     private String warningLevel;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\Hitbox.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\Hitbox.java ===== 
 package com.mangastudio.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -1674,7 +1719,7 @@ public class Hitbox {
     private Double height;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\HitboxComment.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\HitboxComment.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1698,7 +1743,7 @@ public class HitboxComment {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(columnDefinition = "NVARCHAR(MAX)", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
     @Column(name = "created_at")
@@ -1706,7 +1751,7 @@ public class HitboxComment {
     private LocalDateTime createdAt = LocalDateTime.now();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\MangaSeries.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\MangaSeries.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1736,7 +1781,7 @@ public class MangaSeries {
     @Column(length = 100)
     private String genre;
 
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column(columnDefinition = "TEXT")
     private String summary;
 
     @Column(length = 50)
@@ -1747,7 +1792,7 @@ public class MangaSeries {
     private LocalDateTime createdAt = LocalDateTime.now();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\Notification.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\Notification.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1767,7 +1812,7 @@ public class Notification {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(columnDefinition = "NVARCHAR(MAX)", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String message;
 
     @Column(name = "is_read")
@@ -1779,7 +1824,7 @@ public class Notification {
     private LocalDateTime createdAt = LocalDateTime.now();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\OtpCode.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\OtpCode.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1810,7 +1855,7 @@ public class OtpCode {
     private LocalDateTime expirationTime;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\Page.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\Page.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1850,7 +1895,7 @@ public class Page {
     private List<PageVersion> versions;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\PageVersion.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\PageVersion.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1892,7 +1937,7 @@ public class PageVersion {
     // exactly WHICH assistant or mangaka created this specific version.
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\PublishingSchedule.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\PublishingSchedule.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1919,7 +1964,7 @@ public class PublishingSchedule {
     private String frequency; // Weekly, Monthly
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\Resource.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\Resource.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1949,7 +1994,7 @@ public class Resource {
     private User uploadedBy;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\Role.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\Role.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1968,7 +2013,7 @@ public class Role {
     private String roleName;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\SystemParameter.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\SystemParameter.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -1990,7 +2035,7 @@ public class SystemParameter {
     private String paramValue;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\TantouFeedback.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\TantouFeedback.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -2026,7 +2071,7 @@ public class TantouFeedback {
     @Column(nullable = false)
     private Double height;
 
-    @Column(columnDefinition = "NVARCHAR(MAX)", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
     @Column(name = "is_resolved")
@@ -2038,7 +2083,7 @@ public class TantouFeedback {
     private LocalDateTime createdAt = LocalDateTime.now();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\Task.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\Task.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -2070,7 +2115,7 @@ public class Task {
     @Column(length = 50)
     private String status; // Todo, Doing, Reviewing, Approved
 
-    @Column(columnDefinition = "NVARCHAR(MAX)", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String description;
 
     @Column(name = "submitted_image_url", length = 255)
@@ -2081,7 +2126,7 @@ public class Task {
     private LocalDateTime createdAt = LocalDateTime.now();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\TelemetryAnalytics.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\TelemetryAnalytics.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -2116,7 +2161,7 @@ public class TelemetryAnalytics {
     private LocalDateTime calculatedAt = LocalDateTime.now();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\entity\User.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\User.java ===== 
 package com.mangastudio.backend.entity;
 
 import jakarta.persistence.*;
@@ -2148,7 +2193,7 @@ public class User {
     @Column(name = "full_name", length = 255)
     private String fullName;
 
-    @Column(name = "profile_data", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "profile_data", columnDefinition = "TEXT")
     private String profileData;
 
     @Column(name = "created_at")
@@ -2161,7 +2206,7 @@ public class User {
     private Boolean isActive = true;
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\exception\ErrorResponse.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\exception\ErrorResponse.java ===== 
 package com.mangastudio.backend.exception;
 
 import lombok.AllArgsConstructor;
@@ -2180,7 +2225,7 @@ public class ErrorResponse {
     private LocalDateTime timestamp; // Thời điểm xảy ra lỗi
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\exception\GlobalExceptionHandler.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\exception\GlobalExceptionHandler.java ===== 
 package com.mangastudio.backend.exception;
 
 import org.springframework.http.HttpStatus;
@@ -2237,7 +2282,7 @@ public class GlobalExceptionHandler {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\listener\PageVersioningListener.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\listener\PageVersioningListener.java ===== 
 package com.mangastudio.backend.listener;
 
 import com.mangastudio.backend.entity.Page;
@@ -2283,7 +2328,7 @@ public class PageVersioningListener {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\BoardVoteRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\BoardVoteRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.BoardVote;
@@ -2302,7 +2347,7 @@ public interface BoardVoteRepository extends JpaRepository<BoardVote, Long> {
     long countByMangaSeriesIdAndIsApproved(Long seriesId, Boolean isApproved);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\ChapterRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\ChapterRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.Chapter;
@@ -2315,7 +2360,7 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     List<Chapter> findByMangaSeriesIdOrderByChapterNumberAsc(Long seriesId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\ChapterScriptRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\ChapterScriptRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.ChapterScript;
@@ -2326,7 +2371,7 @@ public interface ChapterScriptRepository extends JpaRepository<ChapterScript, Lo
     Optional<ChapterScript> findByChapterId(Long chapterId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\DeadlineEventRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\DeadlineEventRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.DeadlineEvent;
@@ -2343,7 +2388,7 @@ public interface DeadlineEventRepository extends JpaRepository<DeadlineEvent, Lo
     List<DeadlineEvent> findByWarningLevelNotAndDeadlineDateBefore(String warningLevel, LocalDateTime currentTime);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\HitboxCommentRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\HitboxCommentRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.HitboxComment;
@@ -2355,7 +2400,7 @@ public interface HitboxCommentRepository extends JpaRepository<HitboxComment, Lo
     List<HitboxComment> findByHitboxIdOrderByCreatedAtAsc(Long hitboxId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\HitboxRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\HitboxRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.Hitbox;
@@ -2367,7 +2412,7 @@ public interface HitboxRepository extends JpaRepository<Hitbox, Long> {
     List<Hitbox> findByPageId(Long pageId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\MangaSeriesRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\MangaSeriesRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.MangaSeries;
@@ -2377,7 +2422,7 @@ public interface MangaSeriesRepository extends JpaRepository<MangaSeries, Long> 
     List<MangaSeries> findByMangakaId(Long mangakaId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\NotificationRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\NotificationRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.Notification;
@@ -2386,7 +2431,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\OtpRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\OtpRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.OtpCode;
@@ -2402,7 +2447,7 @@ public interface OtpRepository extends JpaRepository<OtpCode, Long> {
     void deleteByEmail(String email);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\PageRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\PageRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.Page;
@@ -2416,7 +2461,7 @@ public interface PageRepository extends JpaRepository<Page, Long> {
     List<Page> findByChapterIdOrderByPageNumberAsc(Long chapterId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\PageVersionRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\PageVersionRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.PageVersion;
@@ -2431,7 +2476,7 @@ public interface PageVersionRepository extends JpaRepository<PageVersion, Long> 
     int countByPageId(Long pageId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\PublishingScheduleRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\PublishingScheduleRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.PublishingSchedule;
@@ -2444,7 +2489,7 @@ public interface PublishingScheduleRepository extends JpaRepository<PublishingSc
     List<PublishingSchedule> findByMangaSeriesIdOrderByPublishDateAsc(Long seriesId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\ResourceRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\ResourceRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.Resource;
@@ -2453,7 +2498,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ResourceRepository extends JpaRepository<Resource, Long> {
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\RoleRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\RoleRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.Role;
@@ -2466,7 +2511,7 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     Optional<Role> findByRoleName(String roleName);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\SystemParameterRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\SystemParameterRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.SystemParameter;
@@ -2479,7 +2524,7 @@ public interface SystemParameterRepository extends JpaRepository<SystemParameter
     Optional<SystemParameter> findByParamKey(String paramKey);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\TantouFeedbackRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\TantouFeedbackRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.TantouFeedback;
@@ -2491,7 +2536,7 @@ public interface TantouFeedbackRepository extends JpaRepository<TantouFeedback, 
     List<TantouFeedback> findByPageId(Long pageId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\TaskRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\TaskRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.Task;
@@ -2510,7 +2555,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     Task findByHitboxId(Long hitboxId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\TelemetryAnalyticsRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\TelemetryAnalyticsRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.TelemetryAnalytics;
@@ -2522,7 +2567,7 @@ public interface TelemetryAnalyticsRepository extends JpaRepository<TelemetryAna
     Optional<TelemetryAnalytics> findByMangaSeriesId(Long seriesId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\repository\UserRepository.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\UserRepository.java ===== 
 package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.User;
@@ -2532,18 +2577,18 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     
-    // Spring Data JPA will automatically generate the SQL query for this method
     Optional<User> findByUsername(String username);
     
     Optional<User> findByEmail(String email);
 
-    // Useful for validation during registration (FE-01)
+    Optional<User> findByUsernameOrEmail(String username, String email);
+
     Boolean existsByUsername(String username);
     
     Boolean existsByEmail(String email);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\security\AuthEntryPointJwt.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\security\AuthEntryPointJwt.java ===== 
 package com.mangastudio.backend.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -2586,7 +2631,7 @@ public class AuthEntryPointJwt implements AuthenticationEntryPoint {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\security\AuthTokenFilter.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\security\AuthTokenFilter.java ===== 
 package com.mangastudio.backend.security;
 
 import jakarta.servlet.FilterChain;
@@ -2652,7 +2697,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\security\JwtUtils.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\security\JwtUtils.java ===== 
 package com.mangastudio.backend.security;
 
 import io.jsonwebtoken.*;
@@ -2717,7 +2762,7 @@ public class JwtUtils {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\security\UserDetailsImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\security\UserDetailsImpl.java ===== 
 package com.mangastudio.backend.security;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -2795,7 +2840,7 @@ public class UserDetailsImpl implements UserDetails {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\security\UserDetailsServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\security\UserDetailsServiceImpl.java ===== 
 package com.mangastudio.backend.security;
 
 import com.mangastudio.backend.entity.User;
@@ -2815,15 +2860,15 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     @Transactional
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User Not Found with username: " + username));
+    public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
+        User user = userRepository.findByUsernameOrEmail(usernameOrEmail, usernameOrEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("User Not Found with username or email: " + usernameOrEmail));
 
         return UserDetailsImpl.build(user);
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\AuthService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\AuthService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.dto.request.LoginRequest;
@@ -2845,7 +2890,7 @@ public interface AuthService {
     JwtResponse googleLogin(com.mangastudio.backend.dto.request.GoogleLoginRequest request);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\BoardVoteService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\BoardVoteService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.dto.response.BoardVoteSummaryResponse;
@@ -2859,7 +2904,7 @@ public interface BoardVoteService {
     BoardVoteSummaryResponse getVoteSummary(Long seriesId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\ChapterScriptService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\ChapterScriptService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.ChapterScript;
@@ -2869,7 +2914,7 @@ public interface ChapterScriptService {
     ChapterScript saveOrUpdateScript(Long chapterId, Long mangakaId, String content);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\ChapterService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\ChapterService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.dto.request.ChapterCreateRequest;
@@ -2887,7 +2932,7 @@ public interface ChapterService {
     void deleteChapter(Long chapterId, Long currentUserId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\DeadlineEventService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\DeadlineEventService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.DeadlineEvent;
@@ -2903,7 +2948,7 @@ public interface DeadlineEventService {
     void scanAndWarnDeadlines(); 
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\HitboxCommentService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\HitboxCommentService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.HitboxComment;
@@ -2914,7 +2959,7 @@ public interface HitboxCommentService {
     List<HitboxComment> getCommentsByHitbox(Long hitboxId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\MangaSeriesService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\MangaSeriesService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
@@ -2935,7 +2980,7 @@ public interface MangaSeriesService {
     MangaSeriesResponse adminApproveSeries(Long seriesId, boolean isApproved);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\NotificationService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\NotificationService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.Notification;
@@ -2947,7 +2992,7 @@ public interface NotificationService {
     Notification markAsRead(Long notificationId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\PageService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\PageService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.Page;
@@ -2964,7 +3009,7 @@ public interface PageService {
     void deletePage(Long pageId, Long currentUserId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\PublishingScheduleService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\PublishingScheduleService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.dto.request.PublishingScheduleRequest;
@@ -2979,7 +3024,7 @@ public interface PublishingScheduleService {
     void deleteSchedule(Long scheduleId, Long currentUserId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\ResourceService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\ResourceService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.Resource;
@@ -2994,7 +3039,7 @@ public interface ResourceService {
     void deleteResource(Long resourceId, Long currentUserId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\SystemParameterService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\SystemParameterService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.SystemParameter;
@@ -3013,7 +3058,7 @@ public interface SystemParameterService {
     void deleteParameter(String key);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\TantouFeedbackService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\TantouFeedbackService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.TantouFeedback;
@@ -3025,7 +3070,7 @@ public interface TantouFeedbackService {
     TantouFeedback resolveFeedback(Long feedbackId, Long userId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\TaskService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\TaskService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.Task;
@@ -3040,7 +3085,7 @@ public interface TaskService {
     Task submitTaskWork(Long taskId, Long assistantId, String imageUrl);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\TelemetryBufferService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\TelemetryBufferService.java ===== 
 package com.mangastudio.backend.service;
 
 public interface TelemetryBufferService {
@@ -3048,7 +3093,7 @@ public interface TelemetryBufferService {
     void flushBufferToDatabase();
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\UserService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\UserService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.dto.request.UserProfileUpdateRequest;
@@ -3065,7 +3110,7 @@ public interface UserService {
     UserProfileResponse assignRole(Long userId, String roleName);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\WorkspaceService.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\WorkspaceService.java ===== 
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.dto.response.CanvasInitResponse;
@@ -3087,7 +3132,7 @@ public interface WorkspaceService {
     CanvasInitResponse getCanvasInitData(Long pageId);
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\AuthServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\AuthServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
@@ -3329,7 +3374,7 @@ public class AuthServiceImpl implements AuthService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\BoardVoteServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\BoardVoteServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.dto.response.BoardVoteSummaryResponse;
@@ -3398,7 +3443,7 @@ public class BoardVoteServiceImpl implements BoardVoteService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\ChapterScriptServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\ChapterScriptServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.entity.Chapter;
@@ -3447,7 +3492,7 @@ public class ChapterScriptServiceImpl implements ChapterScriptService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\ChapterServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\ChapterServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.dto.request.ChapterCreateRequest;
@@ -3584,7 +3629,7 @@ public class ChapterServiceImpl implements ChapterService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\DeadlineEventServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\DeadlineEventServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.entity.DeadlineEvent;
@@ -3678,7 +3723,7 @@ public class DeadlineEventServiceImpl implements DeadlineEventService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\HitboxCommentServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\HitboxCommentServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.entity.Hitbox;
@@ -3725,7 +3770,7 @@ public class HitboxCommentServiceImpl implements HitboxCommentService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\MangaSeriesServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\MangaSeriesServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
@@ -3921,7 +3966,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\NotificationServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\NotificationServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.entity.Notification;
@@ -3992,7 +4037,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\PageServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\PageServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.cloudinary.Cloudinary;
@@ -4104,7 +4149,7 @@ public class PageServiceImpl implements PageService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\PublishingScheduleServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\PublishingScheduleServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.dto.request.PublishingScheduleRequest;
@@ -4185,7 +4230,7 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\ResourceServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\ResourceServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.cloudinary.Cloudinary;
@@ -4272,7 +4317,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\SystemParameterServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\SystemParameterServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.entity.SystemParameter;
@@ -4338,7 +4383,7 @@ public class SystemParameterServiceImpl implements SystemParameterService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\TantouFeedbackServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\TantouFeedbackServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.entity.Page;
@@ -4404,7 +4449,7 @@ public class TantouFeedbackServiceImpl implements TantouFeedbackService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\TaskServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\TaskServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.entity.Task;
@@ -4505,7 +4550,7 @@ public class TaskServiceImpl implements TaskService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\TelemetryBufferServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\TelemetryBufferServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.entity.Chapter;
@@ -4585,7 +4630,7 @@ public class TelemetryBufferServiceImpl implements TelemetryBufferService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\UserServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\UserServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.dto.request.UserProfileUpdateRequest;
@@ -4681,7 +4726,7 @@ public class UserServiceImpl implements UserService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\service\impl\WorkspaceServiceImpl.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\WorkspaceServiceImpl.java ===== 
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.dto.response.CanvasInitResponse;
@@ -4785,7 +4830,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\java\com\mangastudio\backend\util\DateUtils.java ===== 
+===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\util\DateUtils.java ===== 
 package com.mangastudio.backend.util;
 
 import java.time.LocalDateTime;
@@ -4808,27 +4853,28 @@ public class DateUtils {
     }
 } 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\main\resources\application.yml ===== 
+===== D:\SWP391_Project\backend\src\main\resources\application.yml ===== 
 server:
   port: 8080 # Cổng mặc định của Backend
 
 manga:
   app:
-    jwtSecret: ${JWT_SECRET} # Lỗ hổng đã được bít kín
-    jwtExpirationMs: 
-    googleClientId: ${GOOGLE_CLIENT_ID}
+    jwtSecret: NGVwYjN6YzhxMnB4OXU1aWp2bThkaWZrNnBoMmduOHltdmwycTM4ajYxazA # ${JWT_SECRET}
+    jwtExpirationMs: 86400000
+    googleClientId: 351530225339-5iq6pdi3mdt1fjje0krodp07e18jmi19.apps.googleusercontent.com # ${GOOGLE_CLIENT_ID}
 
 cloudinary:
-  cloud-name: ${CLOUDINARY_CLOUD_NAME}
-  api-key: ${CLOUDINARY_API_KEY}
-  api-secret: ${CLOUDINARY_API_SECRET}
+  cloud-name: dt1stlhqc # ${CLOUDINARY_CLOUD_NAME}
+  api-key: 912788441748564 # ${CLOUDINARY_API_KEY}
+  api-secret: dmTXCWvYWMKHZgsQPvirbywk8Ps # ${CLOUDINARY_API_SECRET}
 
 spring:
   datasource:
-    url: jdbc:sqlserver://${DB_HOST}:${DB_PORT};databaseName=${DB_NAME};encrypt=true;trustServerCertificate=true
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    # Đường link kết nối trực tiếp đến máy chủ Supabase
+    url: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?user=postgres.qtmrecvimbofafyfesjg&password=n8fQh$-e7ELAwX$
+    username: postgres.qtmrecvimbofafyfesjg
+    password: n8fQh$-e7ELAwX$
+    driver-class-name: org.postgresql.Driver
   
   jpa:
     hibernate:
@@ -4836,14 +4882,15 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.SQLServerDialect
+        # Ép Hibernate chuyển sang nói ngôn ngữ PostgreSQL
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         '[format_sql]': true
 
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: lehoangem06092006 # ${MAIL_USERNAME}
+    password: qpjn foac zvqn goma # ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -4857,7 +4904,7 @@ spring:
       max-file-size: 10MB
       max-request-size: 50MB 
  
-===== C:\Users\Gigabyte\Desktop\SWP-BACKEND\backend\src\test\java\com\mangastudio\backend\BackendApplicationTests.java ===== 
+===== D:\SWP391_Project\backend\src\test\java\com\mangastudio\backend\BackendApplicationTests.java ===== 
 package com.mangastudio.backend;
 
 import org.junit.jupiter.api.Test;

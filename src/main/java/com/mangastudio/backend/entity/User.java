@@ -23,13 +23,16 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    @Column(nullable = false, unique = true, length = 150)
+    @Column(unique = true, length = 150)
     private String email;
+
+    @Column(name = "phone_number", unique = true, length = 20)
+    private String phoneNumber;
 
     @Column(name = "full_name", length = 255)
     private String fullName;
 
-    @Column(name = "profile_data", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "profile_data", columnDefinition = "TEXT")
     private String profileData;
 
     @Column(name = "created_at")

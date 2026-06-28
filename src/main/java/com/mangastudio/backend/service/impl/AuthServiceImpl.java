@@ -128,8 +128,25 @@ public class AuthServiceImpl implements AuthService {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Error: Username is already taken!");
         }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Error: Email is already in use!");
+        
+        // 1. Chỉ check trùng Email nếu người dùng CÓ NHẬP email
+        String email = request.getEmail();
+        if (email != null && !email.trim().isEmpty()) {
+            if (userRepository.existsByEmail(email)) {
+                throw new RuntimeException("Error: Email is already in use!");
+            }
+        } else {
+            email = null; // Chuẩn hóa thành null để lưu vào DB
+        }
+
+        // 2. Chỉ check trùng Số điện thoại nếu người dùng CÓ NHẬP số điện thoại
+        String phone = request.getPhoneNumber();
+        if (phone != null && !phone.trim().isEmpty()) {
+            if (userRepository.existsByPhoneNumber(phone)) {
+                throw new RuntimeException("Error: Phone number is already in use!");
+            }
+        } else {
+            phone = null;
         }
 
         Role userRole = roleRepository.findByRoleName(request.getRole())
@@ -137,9 +154,11 @@ public class AuthServiceImpl implements AuthService {
 
         User user = User.builder()
                 .username(request.getUsername())
-                .email(request.getEmail())
+                .email(email) // Sẽ truyền null nếu user chỉ nhập Username
+                .phoneNumber(phone) // Lưu số điện thoại
                 .passwordHash(encoder.encode(request.getPassword()))
                 .role(userRole)
+                .isActive(true)
                 .build();
         userRepository.save(user);
 
