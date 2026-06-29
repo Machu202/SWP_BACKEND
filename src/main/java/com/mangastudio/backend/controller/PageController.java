@@ -9,7 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.springframework.http.MediaType;
 import java.util.List;
 
 @RestController
@@ -19,7 +19,7 @@ public class PageController {
 
     private final PageService pageService;
 
-    @PostMapping("/chapter/{chapterId}")
+    @PostMapping(value = "/chapter/{chapterId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Page> addPageToChapter(
             @PathVariable Long chapterId,
             @RequestParam("pageNumber") Integer pageNumber,
@@ -32,7 +32,7 @@ public class PageController {
     }
 
     // [FE-43] Điểm gọi API để ghi đè trang cũ bằng hình ảnh mới
-    @PutMapping("/{id}/image")
+    @PutMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Page> updatePageImage(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,

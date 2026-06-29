@@ -19,7 +19,13 @@ spring:
     username: postgres.qtmrecvimbofafyfesjg
     password: n8fQh$-e7ELAwX$
     driver-class-name: org.postgresql.Driver
-  
+
+    hikari:
+      maximum-pool-size: 5    # Chỉ cho phép tối đa 5 kết nối đồng thời (Nhỏ hơn giới hạn 15 của Supabase)
+      minimum-idle: 1         # Chỉ giữ 1 kết nối chạy ngầm khi không có ai dùng
+      idle-timeout: 300000    # Đóng kết nối nếu không dùng sau 5 phút (300,000 ms)
+      connection-timeout: 20000 # Thời gian chờ tối đa để lấy kết nối là 20s
+      
   jpa:
     hibernate:
       ddl-auto: update

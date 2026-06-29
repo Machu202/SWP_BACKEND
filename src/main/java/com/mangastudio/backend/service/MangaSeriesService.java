@@ -3,6 +3,8 @@ package com.mangastudio.backend.service;
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
 import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
+import com.mangastudio.backend.entity.MangaSeries;
+
 import java.util.List;
 
 public interface MangaSeriesService {
@@ -16,4 +18,5 @@ public interface MangaSeriesService {
     void deleteSeries(Long seriesId, Long currentUserId);
     // [FE-17] Khai báo hàm Admin chốt duyệt cuối cùng
     MangaSeriesResponse adminApproveSeries(Long seriesId, boolean isApproved);
+    MangaSeries handleAdminDecision(Long seriesId, Boolean isApproved, Long tantouId);
 }
