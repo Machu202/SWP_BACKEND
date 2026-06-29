@@ -80,6 +80,13 @@ public class UserServiceImpl implements UserService {
         return mapToProfileResponse(updatedUser);
     }
 
+    @Override
+    public List<UserProfileResponse> getUsersByRole(String roleName) {
+        return userRepository.findByRole_RoleName(roleName).stream()
+                .map(this::mapToProfileResponse) // Tận dụng lại mapper DTO sẵn có giúp bảo mật giấu passwordHash
+                .collect(Collectors.toList());
+    }
+    
     private UserProfileResponse mapToProfileResponse(User user) {
         return UserProfileResponse.builder()
                 .id(user.getId())
@@ -91,4 +98,5 @@ public class UserServiceImpl implements UserService {
                 .isActive(user.getIsActive()) // Cập nhật mapping
                 .build();
     }
+    
 }

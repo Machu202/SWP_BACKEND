@@ -1,5 +1,6 @@
 package com.mangastudio.backend.controller;
 
+import org.springframework.data.domain.Page;
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
 import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
@@ -96,5 +97,16 @@ public class MangaSeriesController {
     ) {
         MangaSeries updatedSeries = mangaSeriesService.handleAdminDecision(id, isApproved, tantouId);
         return ResponseEntity.ok(updatedSeries);
+    }
+
+    @GetMapping
+    @Operation(summary = "Filter manga series by status with pagination (e.g., ?status=REVIEWING&page=0&size=20)")
+    public ResponseEntity<Page<MangaSeriesResponse>> getSeriesByFilter(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Page<MangaSeriesResponse> responsePage = mangaSeriesService.getSeriesByStatus(status, page, size);
+        return ResponseEntity.ok(responsePage);
     }
 }

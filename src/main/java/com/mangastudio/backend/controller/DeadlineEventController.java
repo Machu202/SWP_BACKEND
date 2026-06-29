@@ -21,18 +21,18 @@ public class DeadlineEventController {
 
     @PostMapping("/series/{seriesId}")
     public ResponseEntity<DeadlineEvent> createDeadline(
-            @PathVariable Long seriesId,
-            @RequestParam String eventName,
-            @RequestParam String deadlineDateStr, // Frontend gửi chuỗi lên
-            Authentication authentication) {
-        
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        
-        // Parse chuỗi ngày tháng từ Frontend (Ví dụ: 2026-06-30T15:30:00)
-        LocalDateTime deadlineDate = LocalDateTime.parse(deadlineDateStr);
-        
-        DeadlineEvent event = deadlineEventService.createDeadline(seriesId, userDetails.getId(), eventName, deadlineDate);
-        return ResponseEntity.status(HttpStatus.CREATED).body(event);
+        @PathVariable Long seriesId,
+        @RequestParam String eventName,
+        @RequestParam String deadlineDateStr,
+        @RequestParam(defaultValue = "NORMAL") String warningLevel, // <-- Thêm dòng này
+        Authentication authentication) {
+
+    UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+    LocalDateTime deadlineDate = LocalDateTime.parse(deadlineDateStr);
+
+    DeadlineEvent event = deadlineEventService.createDeadline(
+            seriesId, userDetails.getId(), eventName, deadlineDate, warningLevel);
+    return ResponseEntity.status(HttpStatus.CREATED).body(event);
     }
 
     @GetMapping("/series/{seriesId}")

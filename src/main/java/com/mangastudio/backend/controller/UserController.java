@@ -3,6 +3,8 @@ package com.mangastudio.backend.controller;
 import com.mangastudio.backend.dto.request.UserProfileUpdateRequest;
 import com.mangastudio.backend.dto.response.UserProfileResponse;
 import com.mangastudio.backend.service.UserService;
+
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -63,5 +65,12 @@ public class UserController {
             @RequestParam String roleName) {
         UserProfileResponse response = userService.assignRole(id, roleName);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    @Operation(summary = "Filter users by role (VD: ?role=Assistant)")
+    public ResponseEntity<List<UserProfileResponse>> getUsersByRole(@RequestParam String role) {
+        List<UserProfileResponse> users = userService.getUsersByRole(role);
+        return ResponseEntity.ok(users);
     }
 }

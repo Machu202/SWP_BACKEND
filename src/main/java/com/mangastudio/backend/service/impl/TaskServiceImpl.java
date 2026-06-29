@@ -8,7 +8,7 @@ import com.mangastudio.backend.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.mangastudio.backend.repository.MangaSeriesRepository;
 import java.util.List;
 
 @Service
@@ -17,7 +17,7 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
-
+    private final MangaSeriesRepository mangaSeriesRepository;
     @Override
     public List<Task> getTasksByMangaka(Long mangakaId) {
         return taskRepository.findByMangakaId(mangakaId);
@@ -95,5 +95,14 @@ public class TaskServiceImpl implements TaskService {
         task.setStatus("REVIEWING"); // Nộp xong thì tự động đẩy cột Kanban sang cột duyệt
         
         return taskRepository.save(task);
+    }
+
+    @Override
+    public List<Task> getTasksBySeries(Long seriesId) {
+        // Kiểm tra dự án truyện có tồn tại không
+        mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found with ID: " + seriesId));
+
+        return taskRepository.findAllTasksBySeriesId(seriesId);
     }
 }

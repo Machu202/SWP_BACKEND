@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
+import io.swagger.v3.oas.annotations.Operation;
 import java.util.List;
 
 @RestController
@@ -64,5 +64,11 @@ public class TaskController {
         
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return ResponseEntity.ok(taskService.submitTaskWork(taskId, userDetails.getId(), imageUrl));
+    }
+
+    @GetMapping("/series/{seriesId}")
+    @Operation(summary = "Get tasks by manga series (For a specific Kanban board)")
+    public ResponseEntity<List<Task>> getTasksBySeries(@PathVariable Long seriesId) {
+        return ResponseEntity.ok(taskService.getTasksBySeries(seriesId));
     }
 }

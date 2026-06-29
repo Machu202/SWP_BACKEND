@@ -15,7 +15,10 @@ import com.mangastudio.backend.repository.BoardVoteRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 @Service
 @RequiredArgsConstructor
 public class MangaSeriesServiceImpl implements MangaSeriesService {
@@ -212,4 +215,22 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
         return mangaSeriesRepository.save(series);
     }
+
+    @Override
+    public Page<MangaSeriesResponse> getSeriesByStatus(String status, int page, int size) {
+        // Sắp xếp truyện mới nhất lên đầu (theo createdAt giảm dần)
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        Page<MangaSeries> seriesPage;
+        if (status != null && !status.isBlank()) {
+            seriesPage = mangaSeriesRepository.findByStatus(status.toUpperCase(), pageable);
+        } else {
+            // Nếu Frontend không truyền status, mặc định lấy toàn bộ sàn
+            seriesPage = mangaSeriesRepository.findAll(pageable);
+        }
+
+        // Chuyển đổi từ Page<MangaSeries> sang Page<MangaSeriesResponse>
+        return seriesPage.map(this::mapToResponse);
+    }
+
 }

@@ -22,24 +22,24 @@ public class DeadlineEventServiceImpl implements DeadlineEventService {
     private final MangaSeriesRepository mangaSeriesRepository;
     private final NotificationService notificationService;
 
+    // Trong file DeadlineEventServiceImpl.java, CHỈ GIỮ LẠI HÀM NÀY:
+
     @Override
     @Transactional
-    public DeadlineEvent createDeadline(Long seriesId, Long mangakaId, String eventName, LocalDateTime deadlineDate) {
+    public DeadlineEvent createDeadline(Long seriesId, Long mangakaId, String eventName, LocalDateTime deadlineDate, String warningLevel) {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
-                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
-
+            .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
         if (!series.getMangaka().getId().equals(mangakaId)) {
-            throw new RuntimeException("Error: Only the Mangaka can set deadlines for this series.");
-        }
+        throw new RuntimeException("Error: Only the Mangaka can set deadlines for this series.");
+    }
 
-        DeadlineEvent event = DeadlineEvent.builder()
-                .mangaSeries(series)
-                .eventName(eventName)
-                .deadlineDate(deadlineDate)
-                .warningLevel("NORMAL") // Mặc định ban đầu là Bình thường
-                .build();
-
-        return deadlineEventRepository.save(event);
+    DeadlineEvent event = DeadlineEvent.builder()
+            .mangaSeries(series)
+            .eventName(eventName)
+            .deadlineDate(deadlineDate)
+            .warningLevel(warningLevel != null && !warningLevel.isBlank() ? warningLevel.toUpperCase() : "NORMAL")
+            .build();
+    return deadlineEventRepository.save(event);
     }
 
     @Override

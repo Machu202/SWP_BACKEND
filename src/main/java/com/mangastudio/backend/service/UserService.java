@@ -12,4 +12,6 @@ public interface UserService {
     List<UserProfileResponse> getAllUsers();
     UserProfileResponse toggleUserLock(Long userId, boolean isActive);
     UserProfileResponse assignRole(Long userId, String roleName);
+    
+    List<UserProfileResponse> getUsersByRole(String roleName);
 }

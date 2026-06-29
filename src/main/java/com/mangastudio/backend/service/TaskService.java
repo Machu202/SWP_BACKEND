@@ -10,4 +10,6 @@ public interface TaskService {
     Task assignAssistantToTask(Long taskId, Long mangakaId, Long assistantId);
     Task updateTaskStatus(Long taskId, Long userId, String newStatus);
     Task submitTaskWork(Long taskId, Long assistantId, String imageUrl);
+
+    List<Task> getTasksBySeries(Long seriesId);
 }

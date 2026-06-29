@@ -4,11 +4,12 @@ import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.ChapterScript;
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.ChapterScriptRepository;
+import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.service.ChapterScriptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.util.List;
 import java.time.LocalDateTime;
 
 @Service
@@ -17,6 +18,7 @@ public class ChapterScriptServiceImpl implements ChapterScriptService {
 
     private final ChapterScriptRepository scriptRepository;
     private final ChapterRepository chapterRepository;
+    private final MangaSeriesRepository mangaSeriesRepository;
 
     @Override
     public ChapterScript getScriptByChapter(Long chapterId) {
@@ -43,5 +45,14 @@ public class ChapterScriptServiceImpl implements ChapterScriptService {
         script.setUpdatedAt(LocalDateTime.now());
 
         return scriptRepository.save(script);
+    }
+
+    @Override
+    public List<ChapterScript> getScriptsBySeries(Long seriesId) {
+        // Kiểm tra xem bộ truyện có tồn tại hay không
+        mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found with ID: " + seriesId));
+
+        return scriptRepository.findByChapter_MangaSeries_IdOrderByChapter_ChapterNumberAsc(seriesId);
     }
 }
