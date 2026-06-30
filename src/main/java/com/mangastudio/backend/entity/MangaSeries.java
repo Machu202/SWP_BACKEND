@@ -20,7 +20,9 @@ public class MangaSeries {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tantou_id") // Có thể null nếu dự án mới chưa được phân công Tantou
     private User tantou;
-
+    public User getTantou() { return tantou; }
+    public void setTantou(User tantou) { this.tantou = tantou; }
+    
     @Column(nullable = false, length = 255)
     private String title;
 

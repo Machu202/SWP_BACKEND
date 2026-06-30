@@ -8,7 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.springframework.http.MediaType;
 import java.util.List;
 
 @RestController
@@ -18,7 +18,7 @@ public class ResourceController {
 
     private final ResourceService resourceService;
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Resource> uploadFile(
             Authentication authentication,
             @RequestParam("file") MultipartFile file,

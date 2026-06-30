@@ -35,4 +35,12 @@ public class Page {
     @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<PageVersion> versions;
+
+    @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<Hitbox> hitboxes;
+
+    @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<TantouFeedback> feedbacks;
 }

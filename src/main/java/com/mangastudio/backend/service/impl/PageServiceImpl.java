@@ -4,8 +4,10 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.Page;
+import com.mangastudio.backend.entity.PageVersion; // <-- Thêm
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.PageRepository;
+import com.mangastudio.backend.repository.PageVersionRepository; // <-- Thêm
 import com.mangastudio.backend.service.PageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime; // <-- Thêm
 import java.util.List;
 import java.util.Map;
 
@@ -23,20 +26,18 @@ public class PageServiceImpl implements PageService {
     private final PageRepository pageRepository;
     private final ChapterRepository chapterRepository;
     private final Cloudinary cloudinary;
+    private final PageVersionRepository pageVersionRepository; // Tiêm kho chứa lịch sử vào
 
     @Override
     @Transactional
     public Page addPageToChapter(Long chapterId, Integer pageNumber, MultipartFile file, Long currentUserId) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new RuntimeException("Error: Chapter not found"));
-
-        // Xác thực quyền: Chỉ chủ sở hữu truyện mới được thêm trang
         if (!chapter.getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to modify this chapter");
         }
 
         try {
-            // Upload thẳng lên Cloudinary
             Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
                     "resource_type", "auto",
                     "folder", "mangastudio_pages"
@@ -48,10 +49,12 @@ public class PageServiceImpl implements PageService {
                     .pageNumber(pageNumber)
                     .imageUrl(fileUrl)
                     .build();
+            Page savedPage = pageRepository.save(page);
 
-            // Lưu lần đầu tiên -> Kích hoạt @PostPersist trong Listener
-            return pageRepository.save(page);
+            // [FE-43] Tạo mốc lịch sử Version 1 khi upload lần đầu
+            saveVersionSnapshot(savedPage, fileUrl, 1);
 
+            return savedPage;
         } catch (IOException ex) {
             throw new RuntimeException("Error: Failed to upload page image to Cloudinary", ex);
         }
@@ -62,22 +65,27 @@ public class PageServiceImpl implements PageService {
     public Page updatePageImage(Long pageId, MultipartFile newFile, Long currentUserId) {
         Page page = pageRepository.findById(pageId)
                 .orElseThrow(() -> new RuntimeException("Error: Page not found"));
-
-        // Xác thực quyền: Chỉ chủ sở hữu truyện mới được sửa trang
         if (!page.getChapter().getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to update this page");
         }
 
         try {
+            // 1. Upload ảnh mới đè lên Cloudinary
             Map<?, ?> uploadResult = cloudinary.uploader().upload(newFile.getBytes(), ObjectUtils.asMap(
                 "resource_type", "auto",
-                    "folder", "mangastudio_pages"
+                "folder", "mangastudio_pages"
             ));
             String newFileUrl = uploadResult.get("secure_url").toString();
 
-            // Ghi đè URL mới. Lệnh save() này sẽ lập tức bóp cò kích hoạt @PostUpdate trong PageVersioningListener (FE-43)
+            // 2. Cập nhật ảnh mới cho Page chính
             page.setImageUrl(newFileUrl);
-            return pageRepository.save(page);
+            Page updatedPage = pageRepository.save(page);
+
+            // 3. [FE-43] Đếm số phiên bản hiện có trong DB và tạo Snapshot mới (Version 2, 3...)
+            int currentVersionCount = pageVersionRepository.countByPageId(pageId);
+            saveVersionSnapshot(updatedPage, newFileUrl, currentVersionCount + 1);
+
+            return updatedPage;
 
         } catch (IOException ex) {
             throw new RuntimeException("Error: Failed to upload new page image", ex);
@@ -86,10 +94,8 @@ public class PageServiceImpl implements PageService {
 
     @Override
     public List<Page> getPagesByChapter(Long chapterId) {
-        // Kiểm tra chapter có tồn tại không
         chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new RuntimeException("Error: Chapter not found"));
-                
         return pageRepository.findByChapterIdOrderByPageNumberAsc(chapterId);
     }
 
@@ -98,13 +104,21 @@ public class PageServiceImpl implements PageService {
     public void deletePage(Long pageId, Long currentUserId) {
         Page page = pageRepository.findById(pageId)
                 .orElseThrow(() -> new RuntimeException("Error: Page not found"));
-
         if (!page.getChapter().getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to delete this page");
         }
-
-        // Lưu ý: Tạm thời chỉ xóa Database. 
-        // Nếu muốn xóa sạch rác trên Cloudinary, cần lưu thêm biến public_id vào Page tương tự như cách đã làm ở Resource.
         pageRepository.delete(page);
+    }
+
+    // --- Hàm trợ lý ghi vết Version ---
+    private void saveVersionSnapshot(Page page, String imgUrl, int verNum) {
+        PageVersion version = PageVersion.builder()
+                .page(page)
+                .imageUrl(imgUrl)
+                .versionNumber(verNum)
+                .createdAt(LocalDateTime.now())
+                .build();
+        pageVersionRepository.save(version);
+        System.out.println(">>> [FE-43 VERSIONING] Successfully archived Snapshot Version " + verNum + " for Page ID: " + page.getId());
     }
 }

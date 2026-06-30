@@ -173,12 +173,15 @@ public class SecurityConfig {
                 // Configure route permissions
                 .authorizeHttpRequests(auth -> auth
                         // Allow public access to Authentication APIs
+                        .requestMatchers("/v3/api-docs").permitAll()
+
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         // Allow public access to Swagger UI documentation
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // [BỔ SUNG FE-09] Mở cửa cho kết nối WebSocket Handshake
                         .requestMatchers("/ws/**").permitAll()
-
+                        // BỔ SUNG DÒNG NÀY: Mở cửa tự do cho độc giả vào tăng View & xem thống kê!
+                        .requestMatchers("/api/v1/telemetry/**").permitAll()
                         // All other API requests must be authenticated with a valid JWT
                         .anyRequest().authenticated());
 
@@ -468,7 +471,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
+import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
 @RestController
 @RequestMapping("/api/v1/chapter-scripts")
 @RequiredArgsConstructor
@@ -489,6 +493,12 @@ public class ChapterScriptController {
         
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return ResponseEntity.ok(scriptService.saveOrUpdateScript(chapterId, userDetails.getId(), content));
+    }
+
+    @GetMapping("/series/{seriesId}")
+    @Operation(summary = "Lấy danh sách toàn bộ kịch bản các chương của một bộ truyện")
+    public ResponseEntity<List<ChapterScript>> getScriptsBySeries(@PathVariable Long seriesId) {
+        return ResponseEntity.ok(scriptService.getScriptsBySeries(seriesId));
     }
 } 
  
@@ -516,18 +526,18 @@ public class DeadlineEventController {
 
     @PostMapping("/series/{seriesId}")
     public ResponseEntity<DeadlineEvent> createDeadline(
-            @PathVariable Long seriesId,
-            @RequestParam String eventName,
-            @RequestParam String deadlineDateStr, // Frontend gửi chuỗi lên
-            Authentication authentication) {
-        
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        
-        // Parse chuỗi ngày tháng từ Frontend (Ví dụ: 2026-06-30T15:30:00)
-        LocalDateTime deadlineDate = LocalDateTime.parse(deadlineDateStr);
-        
-        DeadlineEvent event = deadlineEventService.createDeadline(seriesId, userDetails.getId(), eventName, deadlineDate);
-        return ResponseEntity.status(HttpStatus.CREATED).body(event);
+        @PathVariable Long seriesId,
+        @RequestParam String eventName,
+        @RequestParam String deadlineDateStr,
+        @RequestParam(defaultValue = "NORMAL") String warningLevel, // <-- Thêm dòng này
+        Authentication authentication) {
+
+    UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+    LocalDateTime deadlineDate = LocalDateTime.parse(deadlineDateStr);
+
+    DeadlineEvent event = deadlineEventService.createDeadline(
+            seriesId, userDetails.getId(), eventName, deadlineDate, warningLevel);
+    return ResponseEntity.status(HttpStatus.CREATED).body(event);
     }
 
     @GetMapping("/series/{seriesId}")
@@ -587,9 +597,11 @@ public class HitboxCommentController {
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\MangaSeriesController.java ===== 
 package com.mangastudio.backend.controller;
 
+import org.springframework.data.domain.Page;
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
 import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
+import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.MangaSeriesService;
 import jakarta.validation.Valid;
@@ -599,7 +611,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
-
+import io.swagger.v3.oas.annotations.Operation;
 import java.util.List;
 
 @RestController
@@ -671,14 +683,28 @@ public class MangaSeriesController {
         mangaSeriesService.deleteSeries(id, currentUserId);
         return ResponseEntity.ok("Manga Series deleted successfully.");
     }
+    
     @PatchMapping("/{id}/admin-decision")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<MangaSeriesResponse> adminApprove(
+    @Operation(summary = "Admin approves or rejects a manga series. If approved, optionally assign a Tantou.")
+    public ResponseEntity<MangaSeries> handleAdminDecision(
             @PathVariable Long id,
-            @RequestParam boolean isApproved) {
-        
-        MangaSeriesResponse response = mangaSeriesService.adminApproveSeries(id, isApproved);
-        return ResponseEntity.ok(response);
+            @RequestParam Boolean isApproved,
+            @RequestParam(required = false) Long tantouId // required = false để không bắt buộc nếu Admin muốn từ chối (Reject)
+    ) {
+        MangaSeries updatedSeries = mangaSeriesService.handleAdminDecision(id, isApproved, tantouId);
+        return ResponseEntity.ok(updatedSeries);
+    }
+
+    @GetMapping
+    @Operation(summary = "Filter manga series by status with pagination (e.g., ?status=REVIEWING&page=0&size=20)")
+    public ResponseEntity<Page<MangaSeriesResponse>> getSeriesByFilter(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Page<MangaSeriesResponse> responsePage = mangaSeriesService.getSeriesByStatus(status, page, size);
+        return ResponseEntity.ok(responsePage);
     }
 } 
  
@@ -730,7 +756,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.springframework.http.MediaType;
 import java.util.List;
 
 @RestController
@@ -740,7 +766,7 @@ public class PageController {
 
     private final PageService pageService;
 
-    @PostMapping("/chapter/{chapterId}")
+    @PostMapping(value = "/chapter/{chapterId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Page> addPageToChapter(
             @PathVariable Long chapterId,
             @RequestParam("pageNumber") Integer pageNumber,
@@ -753,7 +779,7 @@ public class PageController {
     }
 
     // [FE-43] Điểm gọi API để ghi đè trang cũ bằng hình ảnh mới
-    @PutMapping("/{id}/image")
+    @PutMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Page> updatePageImage(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
@@ -851,7 +877,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.springframework.http.MediaType;
 import java.util.List;
 
 @RestController
@@ -861,7 +887,7 @@ public class ResourceController {
 
     private final ResourceService resourceService;
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Resource> uploadFile(
             Authentication authentication,
             @RequestParam("file") MultipartFile file,
@@ -1011,7 +1037,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
+import io.swagger.v3.oas.annotations.Operation;
 import java.util.List;
 
 @RestController
@@ -1069,6 +1095,12 @@ public class TaskController {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return ResponseEntity.ok(taskService.submitTaskWork(taskId, userDetails.getId(), imageUrl));
     }
+
+    @GetMapping("/series/{seriesId}")
+    @Operation(summary = "Get tasks by manga series (For a specific Kanban board)")
+    public ResponseEntity<List<Task>> getTasksBySeries(@PathVariable Long seriesId) {
+        return ResponseEntity.ok(taskService.getTasksBySeries(seriesId));
+    }
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\controller\TelemetryController.java ===== 
@@ -1111,6 +1143,8 @@ package com.mangastudio.backend.controller;
 import com.mangastudio.backend.dto.request.UserProfileUpdateRequest;
 import com.mangastudio.backend.dto.response.UserProfileResponse;
 import com.mangastudio.backend.service.UserService;
+
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -1171,6 +1205,13 @@ public class UserController {
             @RequestParam String roleName) {
         UserProfileResponse response = userService.assignRole(id, roleName);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    @Operation(summary = "Filter users by role (VD: ?role=Assistant)")
+    public ResponseEntity<List<UserProfileResponse>> getUsersByRole(@RequestParam String role) {
+        List<UserProfileResponse> users = userService.getUsersByRole(role);
+        return ResponseEntity.ok(users);
     }
 } 
  
@@ -1356,7 +1397,6 @@ public class PublishingScheduleRequest {
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\RegisterRequest.java ===== 
 package com.mangastudio.backend.dto.request;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -1370,16 +1410,18 @@ public class RegisterRequest {
     @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
     private String username;
 
-    @NotBlank(message = "Email cannot be blank")
-    @Email(message = "Email should be valid")
+    // ĐÃ XÓA @NotBlank và @Email ĐỂ CHO PHÉP NHẬP RỖNG
     private String email;
 
     @NotBlank(message = "Password cannot be blank")
     @Size(min = 6, max = 40, message = "Password must be at least 6 characters")
     private String password;
 
+    // BỔ SUNG BIẾN SỐ ĐIỆN THOẠI
+    private String phoneNumber;
+
     @NotBlank(message = "Role must be specified")
-    private String role; // Ví dụ: "Mangaka", "Assistant", "Editorial Board"
+    private String role;
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\dto\request\UserProfileUpdateRequest.java ===== 
@@ -1595,6 +1637,8 @@ public class BoardVote {
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\Chapter.java ===== 
 package com.mangastudio.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.List;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -1619,6 +1663,14 @@ public class Chapter {
 
     @Column(name = "publish_status", length = 50)
     private String publishStatus;
+
+    @OneToOne(mappedBy = "chapter", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private ChapterScript chapterScript;
+
+    @OneToMany(mappedBy = "chapter", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<Page> pages;
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\ChapterScript.java ===== 
@@ -1684,7 +1736,7 @@ public class DeadlineEvent {
 package com.mangastudio.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-
+import java.util.List;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -1717,6 +1769,14 @@ public class Hitbox {
 
     @Column(nullable = false)
     private Double height;
+
+    @OneToOne(mappedBy = "hitbox", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private Task task;
+
+    @OneToMany(mappedBy = "hitbox", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<HitboxComment> comments;
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\HitboxComment.java ===== 
@@ -1774,7 +1834,9 @@ public class MangaSeries {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tantou_id") // Có thể null nếu dự án mới chưa được phân công Tantou
     private User tantou;
-
+    public User getTantou() { return tantou; }
+    public void setTantou(User tantou) { this.tantou = tantou; }
+    
     @Column(nullable = false, length = 255)
     private String title;
 
@@ -1893,6 +1955,14 @@ public class Page {
     @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<PageVersion> versions;
+
+    @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<Hitbox> hitboxes;
+
+    @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<TantouFeedback> feedbacks;
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\entity\PageVersion.java ===== 
@@ -2187,8 +2257,11 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    @Column(nullable = false, unique = true, length = 150)
+    @Column(unique = true, length = 150)
     private String email;
+
+    @Column(name = "phone_number", unique = true, length = 20)
+    private String phoneNumber;
 
     @Column(name = "full_name", length = 255)
     private String fullName;
@@ -2285,13 +2358,25 @@ public class GlobalExceptionHandler {
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\listener\PageVersioningListener.java ===== 
 package com.mangastudio.backend.listener;
 
+import org.springframework.stereotype.Component;
+
+@Component
+public class PageVersioningListener {
+    // Đã vô hiệu hóa JPA Listener. Logic lưu vết bản thảo (FE-43) 
+}
+
+/*package com.mangastudio.backend.listener;
+
 import com.mangastudio.backend.entity.Page;
 import com.mangastudio.backend.entity.PageVersion;
 import com.mangastudio.backend.repository.PageVersionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager; // <-- Nhớ import EntityManager
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.PostUpdate;
 import java.time.LocalDateTime;
@@ -2302,31 +2387,46 @@ public class PageVersioningListener {
     @Autowired
     @Lazy
     private PageVersionRepository pageVersionRepository;
-    
+
+    @Autowired
+    @Lazy
+    private EntityManager entityManager; // Tiêm cỗ máy quản lý thực thể của JPA vào
+
+    // TUYỆT ĐỐI KHÔNG dùng REQUIRES_NEW! 
+    // Dùng REQUIRED để PageVersion hòa chung vào Giao dịch A của PageServiceImpl
+    @Transactional(propagation = Propagation.REQUIRED)
     @PostPersist
     @PostUpdate
     public void savePageSnapshot(Page page) {
-        
+        // Chốt chặn an toàn: Nếu page chưa có ID hợp lệ thì hủy bỏ ngay
+        if (page.getId() == null) {
+            return;
+        }
+
         PageVersion newVersion = new PageVersion();
-        newVersion.setPage(page);
+        
+        // BÍ QUYẾT Ở ĐÂY: Dùng getReference() để nhờ Hibernate tạo ra một Proxy đại diện 
+        // cho row có id = page.getId() đang nằm trong Persistence Context.
+        // Cách này giúp vượt qua check Khóa ngoại mà không bị lỗi Transient instance!
+        Page managedPageProxy = entityManager.getReference(Page.class, page.getId());
+        newVersion.setPage(managedPageProxy);
+        
         newVersion.setImageUrl(page.getImageUrl());
         newVersion.setCreatedAt(LocalDateTime.now());
 
-        // BỔ SUNG: Logic tự động đếm số lượng phiên bản hiện có và cộng thêm 1
-        // Ví dụ: Đã có 2 bản, thì bản mới lưu này sẽ là version_number = 3
         try {
             int currentVersionsCount = pageVersionRepository.countByPageId(page.getId());
             newVersion.setVersionNumber(currentVersionsCount + 1);
         } catch (Exception e) {
-            // Nếu có lỗi lúc đếm (hoặc chưa có hàm), mặc định là 1
             newVersion.setVersionNumber(1);
         }
 
         pageVersionRepository.save(newVersion);
         
-        System.out.println(">>> [VERSIONING LISTENER] Automatically backed up Version " + newVersion.getVersionNumber() + " for Page ID: " + page.getId());
+        System.out.println(">>> [VERSIONING LISTENER] Successfully backed up snapshot Version " 
+                + newVersion.getVersionNumber() + " for Page ID: " + page.getId());
     }
-} 
+}*/ 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\BoardVoteRepository.java ===== 
 package com.mangastudio.backend.repository;
@@ -2363,12 +2463,14 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\ChapterScriptRepository.java ===== 
 package com.mangastudio.backend.repository;
 
+import java.util.List;
 import com.mangastudio.backend.entity.ChapterScript;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface ChapterScriptRepository extends JpaRepository<ChapterScript, Long> {
     Optional<ChapterScript> findByChapterId(Long chapterId);
+    List<ChapterScript> findByChapter_MangaSeries_IdOrderByChapter_ChapterNumberAsc(Long seriesId);
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\DeadlineEventRepository.java ===== 
@@ -2414,12 +2516,16 @@ public interface HitboxRepository extends JpaRepository<Hitbox, Long> {
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\MangaSeriesRepository.java ===== 
 package com.mangastudio.backend.repository;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.mangastudio.backend.entity.MangaSeries;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
+import com.mangastudio.backend.repository.MangaSeriesRepository;
+import java.util.List;
 public interface MangaSeriesRepository extends JpaRepository<MangaSeries, Long> {
     List<MangaSeries> findByMangakaId(Long mangakaId);
+    Page<MangaSeries> findByStatus(String status, Pageable pageable);
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\NotificationRepository.java ===== 
@@ -2541,6 +2647,9 @@ package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.Task;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
 import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
@@ -2553,6 +2662,9 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     
     // Lấy Task dựa trên Hitbox (Vì quan hệ là 1-1)
     Task findByHitboxId(Long hitboxId);
+
+    @Query("SELECT t FROM Task t WHERE t.hitbox.page.chapter.mangaSeries.id = :seriesId ORDER BY t.createdAt DESC")
+    List<Task> findAllTasksBySeriesId(@Param("seriesId") Long seriesId);
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\repository\TelemetryAnalyticsRepository.java ===== 
@@ -2572,7 +2684,7 @@ package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
-
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -2586,6 +2698,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Boolean existsByUsername(String username);
     
     Boolean existsByEmail(String email);
+
+    Boolean existsByPhoneNumber(String phoneNumber);
+
+    List<User> findByRole_RoleName(String roleName);
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\security\AuthEntryPointJwt.java ===== 
@@ -2908,10 +3024,13 @@ public interface BoardVoteService {
 package com.mangastudio.backend.service;
 
 import com.mangastudio.backend.entity.ChapterScript;
+import java.util.List;
 
 public interface ChapterScriptService {
     ChapterScript getScriptByChapter(Long chapterId);
     ChapterScript saveOrUpdateScript(Long chapterId, Long mangakaId, String content);
+
+    List<ChapterScript> getScriptsBySeries(Long seriesId);
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\ChapterService.java ===== 
@@ -2940,7 +3059,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface DeadlineEventService {
-    DeadlineEvent createDeadline(Long seriesId, Long mangakaId, String eventName, LocalDateTime deadlineDate);
+    DeadlineEvent createDeadline(Long seriesId, Long mangakaId, String eventName, LocalDateTime deadlineDate, String warningLevel);
     List<DeadlineEvent> getDeadlinesBySeries(Long seriesId);
     void deleteDeadline(Long eventId, Long mangakaId);
     
@@ -2965,6 +3084,8 @@ package com.mangastudio.backend.service;
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
 import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
+import com.mangastudio.backend.entity.MangaSeries;
+import org.springframework.data.domain.Page;
 import java.util.List;
 
 public interface MangaSeriesService {
@@ -2978,6 +3099,9 @@ public interface MangaSeriesService {
     void deleteSeries(Long seriesId, Long currentUserId);
     // [FE-17] Khai báo hàm Admin chốt duyệt cuối cùng
     MangaSeriesResponse adminApproveSeries(Long seriesId, boolean isApproved);
+    MangaSeries handleAdminDecision(Long seriesId, Boolean isApproved, Long tantouId);
+
+    Page<MangaSeriesResponse> getSeriesByStatus(String status, int page, int size);
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\NotificationService.java ===== 
@@ -3083,6 +3207,8 @@ public interface TaskService {
     Task assignAssistantToTask(Long taskId, Long mangakaId, Long assistantId);
     Task updateTaskStatus(Long taskId, Long userId, String newStatus);
     Task submitTaskWork(Long taskId, Long assistantId, String imageUrl);
+
+    List<Task> getTasksBySeries(Long seriesId);
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\TelemetryBufferService.java ===== 
@@ -3108,6 +3234,8 @@ public interface UserService {
     List<UserProfileResponse> getAllUsers();
     UserProfileResponse toggleUserLock(Long userId, boolean isActive);
     UserProfileResponse assignRole(Long userId, String roleName);
+    
+    List<UserProfileResponse> getUsersByRole(String roleName);
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\WorkspaceService.java ===== 
@@ -3263,8 +3391,25 @@ public class AuthServiceImpl implements AuthService {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Error: Username is already taken!");
         }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Error: Email is already in use!");
+        
+        // 1. Chỉ check trùng Email nếu người dùng CÓ NHẬP email
+        String email = request.getEmail();
+        if (email != null && !email.trim().isEmpty()) {
+            if (userRepository.existsByEmail(email)) {
+                throw new RuntimeException("Error: Email is already in use!");
+            }
+        } else {
+            email = null; // Chuẩn hóa thành null để lưu vào DB
+        }
+
+        // 2. Chỉ check trùng Số điện thoại nếu người dùng CÓ NHẬP số điện thoại
+        String phone = request.getPhoneNumber();
+        if (phone != null && !phone.trim().isEmpty()) {
+            if (userRepository.existsByPhoneNumber(phone)) {
+                throw new RuntimeException("Error: Phone number is already in use!");
+            }
+        } else {
+            phone = null;
         }
 
         Role userRole = roleRepository.findByRoleName(request.getRole())
@@ -3272,9 +3417,11 @@ public class AuthServiceImpl implements AuthService {
 
         User user = User.builder()
                 .username(request.getUsername())
-                .email(request.getEmail())
+                .email(email) // Sẽ truyền null nếu user chỉ nhập Username
+                .phoneNumber(phone) // Lưu số điện thoại
                 .passwordHash(encoder.encode(request.getPassword()))
                 .role(userRole)
+                .isActive(true)
                 .build();
         userRepository.save(user);
 
@@ -3450,11 +3597,12 @@ import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.ChapterScript;
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.ChapterScriptRepository;
+import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.service.ChapterScriptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.util.List;
 import java.time.LocalDateTime;
 
 @Service
@@ -3463,6 +3611,7 @@ public class ChapterScriptServiceImpl implements ChapterScriptService {
 
     private final ChapterScriptRepository scriptRepository;
     private final ChapterRepository chapterRepository;
+    private final MangaSeriesRepository mangaSeriesRepository;
 
     @Override
     public ChapterScript getScriptByChapter(Long chapterId) {
@@ -3489,6 +3638,15 @@ public class ChapterScriptServiceImpl implements ChapterScriptService {
         script.setUpdatedAt(LocalDateTime.now());
 
         return scriptRepository.save(script);
+    }
+
+    @Override
+    public List<ChapterScript> getScriptsBySeries(Long seriesId) {
+        // Kiểm tra xem bộ truyện có tồn tại hay không
+        mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found with ID: " + seriesId));
+
+        return scriptRepository.findByChapter_MangaSeries_IdOrderByChapter_ChapterNumberAsc(seriesId);
     }
 } 
  
@@ -3654,24 +3812,24 @@ public class DeadlineEventServiceImpl implements DeadlineEventService {
     private final MangaSeriesRepository mangaSeriesRepository;
     private final NotificationService notificationService;
 
+    // Trong file DeadlineEventServiceImpl.java, CHỈ GIỮ LẠI HÀM NÀY:
+
     @Override
     @Transactional
-    public DeadlineEvent createDeadline(Long seriesId, Long mangakaId, String eventName, LocalDateTime deadlineDate) {
+    public DeadlineEvent createDeadline(Long seriesId, Long mangakaId, String eventName, LocalDateTime deadlineDate, String warningLevel) {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
-                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
-
+            .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
         if (!series.getMangaka().getId().equals(mangakaId)) {
-            throw new RuntimeException("Error: Only the Mangaka can set deadlines for this series.");
-        }
+        throw new RuntimeException("Error: Only the Mangaka can set deadlines for this series.");
+    }
 
-        DeadlineEvent event = DeadlineEvent.builder()
-                .mangaSeries(series)
-                .eventName(eventName)
-                .deadlineDate(deadlineDate)
-                .warningLevel("NORMAL") // Mặc định ban đầu là Bình thường
-                .build();
-
-        return deadlineEventRepository.save(event);
+    DeadlineEvent event = DeadlineEvent.builder()
+            .mangaSeries(series)
+            .eventName(eventName)
+            .deadlineDate(deadlineDate)
+            .warningLevel(warningLevel != null && !warningLevel.isBlank() ? warningLevel.toUpperCase() : "NORMAL")
+            .build();
+    return deadlineEventRepository.save(event);
     }
 
     @Override
@@ -3785,11 +3943,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.mangastudio.backend.repository.BoardVoteRepository;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 @Service
 @RequiredArgsConstructor
 public class MangaSeriesServiceImpl implements MangaSeriesService {
@@ -3964,6 +4124,46 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
         return mapToResponse(updatedSeries);
     }
+
+    @Override
+    @Transactional
+    public MangaSeries handleAdminDecision(Long seriesId, Boolean isApproved, Long tantouId) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series không tồn tại"));
+
+        if (isApproved) {
+            series.setStatus("APPROVED");
+
+            // LOGIC MỚI: Nếu Admin truyền lên ID của Biên tập viên, thực hiện gán ngay!
+            if (tantouId != null) {
+                User tantouEditor = userRepository.findById(tantouId)
+                        .orElseThrow(() -> new RuntimeException("Error: Tài khoản Tantou Editor không tồn tại"));
+                series.setTantou(tantouEditor);
+            }
+        } else {
+            series.setStatus("REJECTED");
+        }
+
+        return mangaSeriesRepository.save(series);
+    }
+
+    @Override
+    public Page<MangaSeriesResponse> getSeriesByStatus(String status, int page, int size) {
+        // Sắp xếp truyện mới nhất lên đầu (theo createdAt giảm dần)
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        Page<MangaSeries> seriesPage;
+        if (status != null && !status.isBlank()) {
+            seriesPage = mangaSeriesRepository.findByStatus(status.toUpperCase(), pageable);
+        } else {
+            // Nếu Frontend không truyền status, mặc định lấy toàn bộ sàn
+            seriesPage = mangaSeriesRepository.findAll(pageable);
+        }
+
+        // Chuyển đổi từ Page<MangaSeries> sang Page<MangaSeriesResponse>
+        return seriesPage.map(this::mapToResponse);
+    }
+
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\NotificationServiceImpl.java ===== 
@@ -4044,8 +4244,10 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.Page;
+import com.mangastudio.backend.entity.PageVersion; // <-- Thêm
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.PageRepository;
+import com.mangastudio.backend.repository.PageVersionRepository; // <-- Thêm
 import com.mangastudio.backend.service.PageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -4053,6 +4255,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime; // <-- Thêm
 import java.util.List;
 import java.util.Map;
 
@@ -4063,20 +4266,18 @@ public class PageServiceImpl implements PageService {
     private final PageRepository pageRepository;
     private final ChapterRepository chapterRepository;
     private final Cloudinary cloudinary;
+    private final PageVersionRepository pageVersionRepository; // Tiêm kho chứa lịch sử vào
 
     @Override
     @Transactional
     public Page addPageToChapter(Long chapterId, Integer pageNumber, MultipartFile file, Long currentUserId) {
         Chapter chapter = chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new RuntimeException("Error: Chapter not found"));
-
-        // Xác thực quyền: Chỉ chủ sở hữu truyện mới được thêm trang
         if (!chapter.getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to modify this chapter");
         }
 
         try {
-            // Upload thẳng lên Cloudinary
             Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
                     "resource_type", "auto",
                     "folder", "mangastudio_pages"
@@ -4088,10 +4289,12 @@ public class PageServiceImpl implements PageService {
                     .pageNumber(pageNumber)
                     .imageUrl(fileUrl)
                     .build();
+            Page savedPage = pageRepository.save(page);
 
-            // Lưu lần đầu tiên -> Kích hoạt @PostPersist trong Listener
-            return pageRepository.save(page);
+            // [FE-43] Tạo mốc lịch sử Version 1 khi upload lần đầu
+            saveVersionSnapshot(savedPage, fileUrl, 1);
 
+            return savedPage;
         } catch (IOException ex) {
             throw new RuntimeException("Error: Failed to upload page image to Cloudinary", ex);
         }
@@ -4102,22 +4305,27 @@ public class PageServiceImpl implements PageService {
     public Page updatePageImage(Long pageId, MultipartFile newFile, Long currentUserId) {
         Page page = pageRepository.findById(pageId)
                 .orElseThrow(() -> new RuntimeException("Error: Page not found"));
-
-        // Xác thực quyền: Chỉ chủ sở hữu truyện mới được sửa trang
         if (!page.getChapter().getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to update this page");
         }
 
         try {
+            // 1. Upload ảnh mới đè lên Cloudinary
             Map<?, ?> uploadResult = cloudinary.uploader().upload(newFile.getBytes(), ObjectUtils.asMap(
                 "resource_type", "auto",
-                    "folder", "mangastudio_pages"
+                "folder", "mangastudio_pages"
             ));
             String newFileUrl = uploadResult.get("secure_url").toString();
 
-            // Ghi đè URL mới. Lệnh save() này sẽ lập tức bóp cò kích hoạt @PostUpdate trong PageVersioningListener (FE-43)
+            // 2. Cập nhật ảnh mới cho Page chính
             page.setImageUrl(newFileUrl);
-            return pageRepository.save(page);
+            Page updatedPage = pageRepository.save(page);
+
+            // 3. [FE-43] Đếm số phiên bản hiện có trong DB và tạo Snapshot mới (Version 2, 3...)
+            int currentVersionCount = pageVersionRepository.countByPageId(pageId);
+            saveVersionSnapshot(updatedPage, newFileUrl, currentVersionCount + 1);
+
+            return updatedPage;
 
         } catch (IOException ex) {
             throw new RuntimeException("Error: Failed to upload new page image", ex);
@@ -4126,10 +4334,8 @@ public class PageServiceImpl implements PageService {
 
     @Override
     public List<Page> getPagesByChapter(Long chapterId) {
-        // Kiểm tra chapter có tồn tại không
         chapterRepository.findById(chapterId)
                 .orElseThrow(() -> new RuntimeException("Error: Chapter not found"));
-                
         return pageRepository.findByChapterIdOrderByPageNumberAsc(chapterId);
     }
 
@@ -4138,14 +4344,22 @@ public class PageServiceImpl implements PageService {
     public void deletePage(Long pageId, Long currentUserId) {
         Page page = pageRepository.findById(pageId)
                 .orElseThrow(() -> new RuntimeException("Error: Page not found"));
-
         if (!page.getChapter().getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to delete this page");
         }
-
-        // Lưu ý: Tạm thời chỉ xóa Database. 
-        // Nếu muốn xóa sạch rác trên Cloudinary, cần lưu thêm biến public_id vào Page tương tự như cách đã làm ở Resource.
         pageRepository.delete(page);
+    }
+
+    // --- Hàm trợ lý ghi vết Version ---
+    private void saveVersionSnapshot(Page page, String imgUrl, int verNum) {
+        PageVersion version = PageVersion.builder()
+                .page(page)
+                .imageUrl(imgUrl)
+                .versionNumber(verNum)
+                .createdAt(LocalDateTime.now())
+                .build();
+        pageVersionRepository.save(version);
+        System.out.println(">>> [FE-43 VERSIONING] Successfully archived Snapshot Version " + verNum + " for Page ID: " + page.getId());
     }
 } 
  
@@ -4460,7 +4674,7 @@ import com.mangastudio.backend.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.mangastudio.backend.repository.MangaSeriesRepository;
 import java.util.List;
 
 @Service
@@ -4469,7 +4683,7 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
-
+    private final MangaSeriesRepository mangaSeriesRepository;
     @Override
     public List<Task> getTasksByMangaka(Long mangakaId) {
         return taskRepository.findByMangakaId(mangakaId);
@@ -4547,6 +4761,15 @@ public class TaskServiceImpl implements TaskService {
         task.setStatus("REVIEWING"); // Nộp xong thì tự động đẩy cột Kanban sang cột duyệt
         
         return taskRepository.save(task);
+    }
+
+    @Override
+    public List<Task> getTasksBySeries(Long seriesId) {
+        // Kiểm tra dự án truyện có tồn tại không
+        mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found with ID: " + seriesId));
+
+        return taskRepository.findAllTasksBySeriesId(seriesId);
     }
 } 
  
@@ -4713,6 +4936,13 @@ public class UserServiceImpl implements UserService {
         return mapToProfileResponse(updatedUser);
     }
 
+    @Override
+    public List<UserProfileResponse> getUsersByRole(String roleName) {
+        return userRepository.findByRole_RoleName(roleName).stream()
+                .map(this::mapToProfileResponse) // Tận dụng lại mapper DTO sẵn có giúp bảo mật giấu passwordHash
+                .collect(Collectors.toList());
+    }
+    
     private UserProfileResponse mapToProfileResponse(User user) {
         return UserProfileResponse.builder()
                 .id(user.getId())
@@ -4724,6 +4954,7 @@ public class UserServiceImpl implements UserService {
                 .isActive(user.getIsActive()) // Cập nhật mapping
                 .build();
     }
+    
 } 
  
 ===== D:\SWP391_Project\backend\src\main\java\com\mangastudio\backend\service\impl\WorkspaceServiceImpl.java ===== 
@@ -4875,7 +5106,13 @@ spring:
     username: postgres.qtmrecvimbofafyfesjg
     password: n8fQh$-e7ELAwX$
     driver-class-name: org.postgresql.Driver
-  
+
+    hikari:
+      maximum-pool-size: 5    # Chỉ cho phép tối đa 5 kết nối đồng thời (Nhỏ hơn giới hạn 15 của Supabase)
+      minimum-idle: 1         # Chỉ giữ 1 kết nối chạy ngầm khi không có ai dùng
+      idle-timeout: 300000    # Đóng kết nối nếu không dùng sau 5 phút (300,000 ms)
+      connection-timeout: 20000 # Thời gian chờ tối đa để lấy kết nối là 20s
+      
   jpa:
     hibernate:
       ddl-auto: update

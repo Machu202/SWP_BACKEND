@@ -1,7 +1,7 @@
 package com.mangastudio.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-
+import java.util.List;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,4 +34,12 @@ public class Hitbox {
 
     @Column(nullable = false)
     private Double height;
+
+    @OneToOne(mappedBy = "hitbox", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private Task task;
+
+    @OneToMany(mappedBy = "hitbox", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<HitboxComment> comments;
 }

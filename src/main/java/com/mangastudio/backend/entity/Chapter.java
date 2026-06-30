@@ -1,5 +1,7 @@
 package com.mangastudio.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.List;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -24,4 +26,12 @@ public class Chapter {
 
     @Column(name = "publish_status", length = 50)
     private String publishStatus;
+
+    @OneToOne(mappedBy = "chapter", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private ChapterScript chapterScript;
+
+    @OneToMany(mappedBy = "chapter", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<Page> pages;
 }

@@ -1,8 +1,10 @@
 package com.mangastudio.backend.controller;
 
+import org.springframework.data.domain.Page;
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
 import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
+import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.MangaSeriesService;
 import jakarta.validation.Valid;
@@ -12,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
-
+import io.swagger.v3.oas.annotations.Operation;
 import java.util.List;
 
 @RestController
@@ -84,13 +86,27 @@ public class MangaSeriesController {
         mangaSeriesService.deleteSeries(id, currentUserId);
         return ResponseEntity.ok("Manga Series deleted successfully.");
     }
+    
     @PatchMapping("/{id}/admin-decision")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<MangaSeriesResponse> adminApprove(
+    @Operation(summary = "Admin approves or rejects a manga series. If approved, optionally assign a Tantou.")
+    public ResponseEntity<MangaSeries> handleAdminDecision(
             @PathVariable Long id,
-            @RequestParam boolean isApproved) {
-        
-        MangaSeriesResponse response = mangaSeriesService.adminApproveSeries(id, isApproved);
-        return ResponseEntity.ok(response);
+            @RequestParam Boolean isApproved,
+            @RequestParam(required = false) Long tantouId // required = false để không bắt buộc nếu Admin muốn từ chối (Reject)
+    ) {
+        MangaSeries updatedSeries = mangaSeriesService.handleAdminDecision(id, isApproved, tantouId);
+        return ResponseEntity.ok(updatedSeries);
+    }
+
+    @GetMapping
+    @Operation(summary = "Filter manga series by status with pagination (e.g., ?status=REVIEWING&page=0&size=20)")
+    public ResponseEntity<Page<MangaSeriesResponse>> getSeriesByFilter(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Page<MangaSeriesResponse> responsePage = mangaSeriesService.getSeriesByStatus(status, page, size);
+        return ResponseEntity.ok(responsePage);
     }
 }

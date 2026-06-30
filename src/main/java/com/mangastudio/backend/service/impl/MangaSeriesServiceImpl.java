@@ -12,11 +12,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.mangastudio.backend.repository.BoardVoteRepository;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 @Service
 @RequiredArgsConstructor
 public class MangaSeriesServiceImpl implements MangaSeriesService {
@@ -191,4 +193,44 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
         return mapToResponse(updatedSeries);
     }
+
+    @Override
+    @Transactional
+    public MangaSeries handleAdminDecision(Long seriesId, Boolean isApproved, Long tantouId) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series không tồn tại"));
+
+        if (isApproved) {
+            series.setStatus("APPROVED");
+
+            // LOGIC MỚI: Nếu Admin truyền lên ID của Biên tập viên, thực hiện gán ngay!
+            if (tantouId != null) {
+                User tantouEditor = userRepository.findById(tantouId)
+                        .orElseThrow(() -> new RuntimeException("Error: Tài khoản Tantou Editor không tồn tại"));
+                series.setTantou(tantouEditor);
+            }
+        } else {
+            series.setStatus("REJECTED");
+        }
+
+        return mangaSeriesRepository.save(series);
+    }
+
+    @Override
+    public Page<MangaSeriesResponse> getSeriesByStatus(String status, int page, int size) {
+        // Sắp xếp truyện mới nhất lên đầu (theo createdAt giảm dần)
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        Page<MangaSeries> seriesPage;
+        if (status != null && !status.isBlank()) {
+            seriesPage = mangaSeriesRepository.findByStatus(status.toUpperCase(), pageable);
+        } else {
+            // Nếu Frontend không truyền status, mặc định lấy toàn bộ sàn
+            seriesPage = mangaSeriesRepository.findAll(pageable);
+        }
+
+        // Chuyển đổi từ Page<MangaSeries> sang Page<MangaSeriesResponse>
+        return seriesPage.map(this::mapToResponse);
+    }
+
 }

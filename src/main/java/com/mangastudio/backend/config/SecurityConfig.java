@@ -56,12 +56,15 @@ public class SecurityConfig {
                 // Configure route permissions
                 .authorizeHttpRequests(auth -> auth
                         // Allow public access to Authentication APIs
+                        .requestMatchers("/v3/api-docs").permitAll()
+
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         // Allow public access to Swagger UI documentation
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // [BỔ SUNG FE-09] Mở cửa cho kết nối WebSocket Handshake
                         .requestMatchers("/ws/**").permitAll()
-
+                        // BỔ SUNG DÒNG NÀY: Mở cửa tự do cho độc giả vào tăng View & xem thống kê!
+                        .requestMatchers("/api/v1/telemetry/**").permitAll()
                         // All other API requests must be authenticated with a valid JWT
                         .anyRequest().authenticated());
 
