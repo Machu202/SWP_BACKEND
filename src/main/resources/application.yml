@@ -1,46 +1,47 @@
 server:
-  port: 8080 # Cổng mặc định của Backend
+  port: ${SERVER_PORT:8080}
 
 manga:
   app:
-    jwtSecret: NGVwYjN6YzhxMnB4OXU1aWp2bThkaWZrNnBoMmduOHltdmwycTM4ajYxazA # ${JWT_SECRET}
-    jwtExpirationMs: 86400000
-    googleClientId: 351530225339-5iq6pdi3mdt1fjje0krodp07e18jmi19.apps.googleusercontent.com # ${GOOGLE_CLIENT_ID}
+    jwtSecret: ${JWT_SECRET:NGVwYjN6YzhxMnB4OXU1aWp2bThkaWZrNnBoMmduOHltdmwycTM4ajYxazA}
+    jwtExpirationMs: ${JWT_EXPIRATION_MS:86400000}
+    googleClientId: ${GOOGLE_CLIENT_ID:}
 
 cloudinary:
-  cloud-name: dt1stlhqc # ${CLOUDINARY_CLOUD_NAME}
-  api-key: 912788441748564 # ${CLOUDINARY_API_KEY}
-  api-secret: dmTXCWvYWMKHZgsQPvirbywk8Ps # ${CLOUDINARY_API_SECRET}
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key: ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5500,http://127.0.0.1:5500}
 
 spring:
   datasource:
-    # Đường link kết nối trực tiếp đến máy chủ Supabase
-    url: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?user=postgres.qtmrecvimbofafyfesjg&password=n8fQh$-e7ELAwX$
-    username: postgres.qtmrecvimbofafyfesjg
-    password: n8fQh$-e7ELAwX$
+    url: ${DB_URL:jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres}
+    username: ${DB_USERNAME:postgres.qtmrecvimbofafyfesjg}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
-
     hikari:
-      maximum-pool-size: 5    # Chỉ cho phép tối đa 5 kết nối đồng thời (Nhỏ hơn giới hạn 15 của Supabase)
-      minimum-idle: 1         # Chỉ giữ 1 kết nối chạy ngầm khi không có ai dùng
-      idle-timeout: 300000    # Đóng kết nối nếu không dùng sau 5 phút (300,000 ms)
-      connection-timeout: 20000 # Thời gian chờ tối đa để lấy kết nối là 20s
-      
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:2}
+      minimum-idle: ${DB_MIN_IDLE:1}
+      idle-timeout: ${DB_IDLE_TIMEOUT:300000}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+      max-lifetime: ${DB_MAX_LIFETIME:60000}
+
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        # Ép Hibernate chuyển sang nói ngôn ngữ PostgreSQL
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        '[format_sql]': true
+        format_sql: ${JPA_FORMAT_SQL:false}
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: lehoangem06092006 # ${MAIL_USERNAME}
-    password: qpjn foac zvqn goma # ${MAIL_PASSWORD}
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -48,8 +49,11 @@ spring:
           starttls:
             enable: true
 
-  # Cấu hình giới hạn dung lượng file upload (Cho tính năng Upload trang truyện Manga)
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 50MB
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
