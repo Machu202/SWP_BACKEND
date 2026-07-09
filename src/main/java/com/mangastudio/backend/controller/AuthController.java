@@ -71,6 +71,14 @@ public class AuthController {
     // CÁC HÀM CŨ ĐƯỢC GIỮ NGUYÊN ĐỂ KHÔNG BỊ LỖI ĐỎ
     // ========================================================
 
+    // Request OTP after checking email/username + password.
+    // Frontend calls this first, then calls /verify-otp with the email + OTP code.
+    @PostMapping("/request-otp")
+    public ResponseEntity<MessageResponse> requestOtp(@Valid @RequestBody LoginRequest loginRequest) {
+        MessageResponse response = authService.authenticateUserAndGenerateOtp(loginRequest);
+        return ResponseEntity.ok(response);
+    }
+
     // Nhập OTP -> Trả về JWT Token (Giữ lại làm phương án dự phòng)
     @PostMapping("/verify-otp")
     public ResponseEntity<JwtResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
