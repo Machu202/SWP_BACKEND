@@ -58,6 +58,7 @@ public class AuthController {
         // 6. Đóng gói dữ liệu trả thẳng về cho Frontend
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("token", jwt);
+        responseBody.put("id", userDetails.getId());
         responseBody.put("role", role);
         responseBody.put("username", userDetails.getUsername());
         responseBody.put("email", userDetails.getEmail());
