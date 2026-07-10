@@ -7,7 +7,7 @@ import java.util.List;
 public interface PageService {
     Page addPageToChapter(Long chapterId, Integer pageNumber, MultipartFile file, Long currentUserId);
     
-    // [FE-43] Đây là hàm quan trọng nhất: Cập nhật ảnh sẽ kích hoạt Versioning Listener
+    // [FE-43] Cập nhật ảnh sẽ tạo PageVersion trực tiếp trong PageServiceImpl
     Page updatePageImage(Long pageId, MultipartFile newFile, Long currentUserId);
     
     List<Page> getPagesByChapter(Long chapterId);

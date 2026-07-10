@@ -4,10 +4,10 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.Page;
-import com.mangastudio.backend.entity.PageVersion; // <-- Thêm
+import com.mangastudio.backend.entity.PageVersion;
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.PageRepository;
-import com.mangastudio.backend.repository.PageVersionRepository; // <-- Thêm
+import com.mangastudio.backend.repository.PageVersionRepository;
 import com.mangastudio.backend.service.PageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.LocalDateTime; // <-- Thêm
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -49,7 +49,7 @@ public class PageServiceImpl implements PageService {
                     .pageNumber(pageNumber)
                     .imageUrl(fileUrl)
                     .build();
-            Page savedPage = pageRepository.save(page);
+            Page savedPage = pageRepository.saveAndFlush(page);
 
             // [FE-43] Tạo mốc lịch sử Version 1 khi upload lần đầu
             saveVersionSnapshot(savedPage, fileUrl, 1);
@@ -79,11 +79,11 @@ public class PageServiceImpl implements PageService {
 
             // 2. Cập nhật ảnh mới cho Page chính
             page.setImageUrl(newFileUrl);
-            Page updatedPage = pageRepository.save(page);
+            Page updatedPage = pageRepository.saveAndFlush(page);
 
-            // 3. [FE-43] Đếm số phiên bản hiện có trong DB và tạo Snapshot mới (Version 2, 3...)
-            int currentVersionCount = pageVersionRepository.countByPageId(pageId);
-            saveVersionSnapshot(updatedPage, newFileUrl, currentVersionCount + 1);
+            // 3. [FE-43] Find the latest version number and create the next snapshot.
+            int nextVersionNumber = getNextVersionNumber(updatedPage.getId());
+            saveVersionSnapshot(updatedPage, newFileUrl, nextVersionNumber);
 
             return updatedPage;
 
@@ -111,14 +111,30 @@ public class PageServiceImpl implements PageService {
     }
 
     // --- Hàm trợ lý ghi vết Version ---
-    private void saveVersionSnapshot(Page page, String imgUrl, int verNum) {
+    private int getNextVersionNumber(Long pageId) {
+        return pageVersionRepository.findTopByPageIdOrderByVersionNumberDesc(pageId)
+                .map(PageVersion::getVersionNumber)
+                .map(version -> version + 1)
+                .orElse(1);
+    }
+
+    private void saveVersionSnapshot(Page savedPage, String imgUrl, int verNum) {
+        if (savedPage == null || savedPage.getId() == null) {
+            throw new IllegalStateException("Cannot create PageVersion before Page has been saved.");
+        }
+
+        Page managedPage = pageRepository.getReferenceById(savedPage.getId());
+
         PageVersion version = PageVersion.builder()
-                .page(page)
+                .page(managedPage)
                 .imageUrl(imgUrl)
                 .versionNumber(verNum)
                 .createdAt(LocalDateTime.now())
                 .build();
-        pageVersionRepository.save(version);
-        System.out.println(">>> [FE-43 VERSIONING] Successfully archived Snapshot Version " + verNum + " for Page ID: " + page.getId());
+
+        pageVersionRepository.saveAndFlush(version);
+
+        System.out.println(">>> [FE-43 VERSIONING] Successfully archived Snapshot Version "
+                + verNum + " for Page ID: " + savedPage.getId());
     }
 }

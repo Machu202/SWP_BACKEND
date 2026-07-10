@@ -72,7 +72,7 @@ public class AuthController {
     // ========================================================
 
     // Request OTP after checking email/username + password.
-    // Frontend calls this first, then calls /verify-otp with the email + OTP code.
+    // Frontend calls this before /verify-otp.
     @PostMapping("/request-otp")
     public ResponseEntity<MessageResponse> requestOtp(@Valid @RequestBody LoginRequest loginRequest) {
         MessageResponse response = authService.authenticateUserAndGenerateOtp(loginRequest);
