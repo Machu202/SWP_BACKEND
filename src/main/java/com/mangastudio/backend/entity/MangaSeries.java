@@ -32,12 +32,6 @@ public class MangaSeries {
     @Column(columnDefinition = "TEXT")
     private String summary;
 
-    @Column(columnDefinition = "TEXT")
-    private String description;
-
-    @Column(name = "cover_image_url", length = 1000)
-    private String coverImageUrl;
-
     @Column(length = 50)
     private String status;
 

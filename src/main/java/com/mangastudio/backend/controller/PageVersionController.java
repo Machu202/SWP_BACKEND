@@ -49,10 +49,7 @@ public class PageVersionController {
         page.setImageUrl(version.getImageUrl());
         Page restoredPage = pageRepository.saveAndFlush(page);
 
-        int nextVersionNumber = pageVersionRepository.findTopByPageIdOrderByVersionNumberDesc(page.getId())
-                .map(PageVersion::getVersionNumber)
-                .map(number -> number + 1)
-                .orElse(1);
+        int nextVersionNumber = pageVersionRepository.countByPageId(page.getId()) + 1;
 
         PageVersion restoreSnapshot = PageVersion.builder()
                 .page(pageRepository.getReferenceById(page.getId()))

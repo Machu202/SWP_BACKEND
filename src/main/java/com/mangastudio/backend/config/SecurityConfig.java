@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -46,7 +45,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
 
                 // Enable CORS using the CorsConfig setup
-                .cors(Customizer.withDefaults())
+                .cors(cors -> cors.configure(http))
 
                 // TODO: Uncomment this to handle unauthorized access errors (401)
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))

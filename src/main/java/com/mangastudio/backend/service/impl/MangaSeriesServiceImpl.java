@@ -38,8 +38,6 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                 .title(request.getTitle())
                 .genre(request.getGenre())
                 .summary(request.getSummary())
-                .description(firstNonBlank(request.getDescription(), request.getSummary()))
-                .coverImageUrl(firstNonBlank(request.getCoverImageUrl(), request.getCoverUrl(), request.getImageUrl(), request.getThumbnailUrl(), request.getCoverImage(), request.getPrimaryArtUrl()))
                 .status("DRAFT")
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -130,9 +128,6 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         if (request.getTitle() != null && !request.getTitle().isBlank()) series.setTitle(request.getTitle());
         if (request.getGenre() != null) series.setGenre(request.getGenre());
         if (request.getSummary() != null) series.setSummary(request.getSummary());
-        if (request.getDescription() != null) series.setDescription(request.getDescription());
-        String coverImageUrl = firstNonBlank(request.getCoverImageUrl(), request.getCoverUrl(), request.getImageUrl(), request.getThumbnailUrl(), request.getCoverImage(), request.getPrimaryArtUrl());
-        if (coverImageUrl != null) series.setCoverImageUrl(coverImageUrl);
 
         MangaSeries updatedSeries = mangaSeriesRepository.save(series);
         return mapToResponse(updatedSeries);
@@ -158,14 +153,6 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         mangaSeriesRepository.delete(series);
     }
 
-    private String firstNonBlank(String... values) {
-        if (values == null) return null;
-        for (String value : values) {
-            if (value != null && !value.isBlank()) return value;
-        }
-        return null;
-    }
-
     private MangaSeriesResponse mapToResponse(MangaSeries series) {
         String tantouName = (series.getTantou() != null) ? series.getTantou().getFullName() : "Unassigned";
 
@@ -174,15 +161,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                 .title(series.getTitle())
                 .genre(series.getGenre())
                 .summary(series.getSummary())
-                .description(series.getDescription())
-                .coverImageUrl(series.getCoverImageUrl())
-                .coverUrl(series.getCoverImageUrl())
-                .imageUrl(series.getCoverImageUrl())
-                .thumbnailUrl(series.getCoverImageUrl())
                 .status(series.getStatus())
-                .mangakaId(series.getMangaka().getId())
-                .mangakaUsername(series.getMangaka().getUsername())
-                .mangakaEmail(series.getMangaka().getEmail())
                 .mangakaName(series.getMangaka().getFullName())
                 .tantouName(tantouName)
                 .createdAt(series.getCreatedAt())

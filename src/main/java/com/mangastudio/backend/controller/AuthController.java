@@ -58,6 +58,7 @@ public class AuthController {
         // 6. Đóng gói dữ liệu trả thẳng về cho Frontend
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("token", jwt);
+        responseBody.put("type", "Bearer");
         responseBody.put("id", userDetails.getId());
         responseBody.put("role", role);
         responseBody.put("username", userDetails.getUsername());
@@ -73,7 +74,7 @@ public class AuthController {
     // ========================================================
 
     // Request OTP after checking email/username + password.
-    // Frontend calls this before /verify-otp.
+    // Frontend calls this first, then calls /verify-otp with the email + OTP code.
     @PostMapping("/request-otp")
     public ResponseEntity<MessageResponse> requestOtp(@Valid @RequestBody LoginRequest loginRequest) {
         MessageResponse response = authService.authenticateUserAndGenerateOtp(loginRequest);

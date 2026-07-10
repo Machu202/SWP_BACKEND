@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "pages") // Chuyển thành số nhiều cho chuẩn quy tắc Database
+@EntityListeners(com.mangastudio.backend.listener.PageVersioningListener.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Page {
     

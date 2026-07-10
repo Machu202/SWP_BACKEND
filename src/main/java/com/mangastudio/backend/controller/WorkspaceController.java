@@ -1,7 +1,6 @@
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.response.CanvasInitResponse;
-import com.mangastudio.backend.dto.response.TaskResponse;
 import com.mangastudio.backend.entity.Hitbox;
 import com.mangastudio.backend.entity.Task;
 import com.mangastudio.backend.security.UserDetailsImpl;
@@ -49,7 +48,7 @@ public class WorkspaceController {
     }
 
     @PostMapping("/hitboxes/{hitboxId}/task")
-    public ResponseEntity<TaskResponse> assignTask(
+    public ResponseEntity<Task> assignTask(
             @PathVariable Long hitboxId,
             @RequestBody Task taskRequest,
             Authentication authentication) {
@@ -58,7 +57,7 @@ public class WorkspaceController {
         Long mangakaId = userDetails.getId();
 
         Task assignedTask = workspaceService.assignTaskToHitbox(hitboxId, mangakaId, taskRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(TaskResponse.from(assignedTask));
+        return ResponseEntity.status(HttpStatus.CREATED).body(assignedTask);
     }
     // [FE-33] API "All-in-one" để Frontend khởi tạo giao diện vẽ Canvas
     @GetMapping("/pages/{pageId}/canvas-init")
