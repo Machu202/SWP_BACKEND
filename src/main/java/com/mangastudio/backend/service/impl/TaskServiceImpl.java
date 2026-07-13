@@ -37,6 +37,11 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    public List<Task> getTasksByTantou(Long tantouId) {
+        return taskRepository.findByAssignedTantouId(tantouId);
+    }
+
+    @Override
     @Transactional
     public Task assignAssistantToTask(Long taskId, Long mangakaId, Long assistantId) {
         Task task = taskRepository.findById(taskId)

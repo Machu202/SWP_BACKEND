@@ -34,12 +34,17 @@ public class TaskController {
         Long userId = userDetails.getId();
         
         String role = userDetails.getAuthorities().iterator().next().getAuthority();
+        String normalizedRole = role == null ? "" : role.trim().toUpperCase();
         List<Task> tasks;
-        if (role.equals("ROLE_MANGAKA")) {
+        if (normalizedRole.contains("MANGAKA")) {
             tasks = taskService.getTasksByMangaka(userId);
-        } else {
-            // Mặc định các Role khác (Chủ yếu là Assistant)
+        } else if (normalizedRole.contains("ASSISTANT")) {
             tasks = taskService.getTasksByAssistant(userId);
+        } else if (normalizedRole.contains("TANTOU")) {
+            tasks = taskService.getTasksByTantou(userId);
+        } else {
+            // Board/Admin do not have a task Kanban. Do not leak Assistant tasks by default.
+            tasks = List.of();
         }
         return ResponseEntity.ok(toTaskResponses(tasks));
     }

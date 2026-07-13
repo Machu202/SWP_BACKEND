@@ -30,6 +30,17 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
            "LEFT JOIN FETCH chapter.mangaSeries series " +
            "WHERE t.assistant.id = :assistantId ORDER BY t.createdAt DESC")
     List<Task> findByAssistantId(@Param("assistantId") Long assistantId);
+
+    // Tantou sees a read-only Kanban of tasks from only the manga series assigned to them.
+    @Query("SELECT DISTINCT t FROM Task t " +
+           "LEFT JOIN FETCH t.assistant assistant " +
+           "LEFT JOIN FETCH t.mangaka mangaka " +
+           "LEFT JOIN FETCH t.hitbox hitbox " +
+           "LEFT JOIN FETCH hitbox.page page " +
+           "LEFT JOIN FETCH page.chapter chapter " +
+           "LEFT JOIN FETCH chapter.mangaSeries series " +
+           "WHERE series.tantou.id = :tantouId ORDER BY t.createdAt DESC")
+    List<Task> findByAssignedTantouId(@Param("tantouId") Long tantouId);
     
     // Lấy Task dựa trên Hitbox (Vì quan hệ là 1-1)
     Task findByHitboxId(Long hitboxId);
