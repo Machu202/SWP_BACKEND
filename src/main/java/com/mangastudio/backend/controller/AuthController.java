@@ -6,11 +6,12 @@ import com.mangastudio.backend.dto.request.RegisterRequest;
 import com.mangastudio.backend.dto.request.VerifyOtpRequest;
 import com.mangastudio.backend.dto.response.JwtResponse;
 import com.mangastudio.backend.dto.response.MessageResponse;
+import com.mangastudio.backend.entity.User;
+import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.security.JwtUtils;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.AuthService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,42 +21,44 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
+    private final UserRepository userRepository;
 
-    // ========================================================
-    // ĐÃ SỬA: ĐĂNG NHẬP TRẢ VỀ TOKEN TRỰC TIẾP, BỎ QUA OTP
-    // ========================================================
+    public AuthController(AuthService authService, AuthenticationManager authenticationManager,
+                          JwtUtils jwtUtils, UserRepository userRepository) {
+        this.authService = authService;
+        this.authenticationManager = authenticationManager;
+        this.jwtUtils = jwtUtils;
+        this.userRepository = userRepository;
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        
-        // 1. Kiểm tra tài khoản và mật khẩu
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
-
-        // 2. Nếu mật khẩu ĐÚNG, lưu trạng thái vào Security Context
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // 3. Tạo chìa khóa JWT Token ngay lập tức
-        String jwt = jwtUtils.generateJwtToken(authentication);
-
-        // 4. Lấy thông tin chi tiết của User
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        
-        // 5. Lấy Quyền (Role) của User để Frontend biết đường chuyển trang
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("Error: User not found"));
+        String sessionId = UUID.randomUUID().toString();
+        user.setActiveSessionId(sessionId);
+        userRepository.saveAndFlush(user);
+
+        String jwt = jwtUtils.generateJwtToken(authentication, sessionId);
         String role = userDetails.getAuthorities().stream()
                 .findFirst()
                 .map(item -> item.getAuthority())
-                .orElse("Mangaka"); // Mặc định nếu lỗi phân quyền
+                .orElse("ROLE_MANGAKA");
 
-        // 6. Đóng gói dữ liệu trả thẳng về cho Frontend
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("token", jwt);
         responseBody.put("type", "Bearer");
@@ -64,40 +67,58 @@ public class AuthController {
         responseBody.put("username", userDetails.getUsername());
         responseBody.put("email", userDetails.getEmail());
         responseBody.put("message", "Đăng nhập thành công!");
-
-        // Trả về HTTP 200 OK kèm theo Token
         return ResponseEntity.ok(responseBody);
     }
 
-    // ========================================================
-    // CÁC HÀM CŨ ĐƯỢC GIỮ NGUYÊN ĐỂ KHÔNG BỊ LỖI ĐỎ
-    // ========================================================
-
-    // Request OTP after checking email/username + password.
-    // Frontend calls this first, then calls /verify-otp with the email + OTP code.
-    @PostMapping("/request-otp")
-    public ResponseEntity<MessageResponse> requestOtp(@Valid @RequestBody LoginRequest loginRequest) {
-        MessageResponse response = authService.authenticateUserAndGenerateOtp(loginRequest);
+    /** Heartbeat endpoint used by the frontend to detect a newer login. */
+    @GetMapping("/session")
+    public ResponseEntity<Map<String, Object>> session(Authentication authentication) {
+        UserDetailsImpl user = (UserDetailsImpl) authentication.getPrincipal();
+        Map<String, Object> response = new HashMap<>();
+        response.put("active", true);
+        response.put("id", user.getId());
+        response.put("username", user.getUsername());
         return ResponseEntity.ok(response);
     }
 
-    // Nhập OTP -> Trả về JWT Token (Giữ lại làm phương án dự phòng)
+    @PostMapping("/logout")
+    public ResponseEntity<MessageResponse> logout(
+            Authentication authentication,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetailsImpl details) {
+            User user = userRepository.findById(details.getId()).orElse(null);
+            String token = bearerToken(authorization);
+            String sessionId = token.isBlank() ? "" : jwtUtils.getSessionIdFromJwtToken(token);
+            if (user != null && sessionId.equals(user.getActiveSessionId())) {
+                user.setActiveSessionId(null);
+                userRepository.save(user);
+            }
+        }
+        return ResponseEntity.ok(new MessageResponse("Logged out."));
+    }
+
+    @PostMapping("/request-otp")
+    public ResponseEntity<MessageResponse> requestOtp(@Valid @RequestBody LoginRequest loginRequest) {
+        return ResponseEntity.ok(authService.authenticateUserAndGenerateOtp(loginRequest));
+    }
+
     @PostMapping("/verify-otp")
     public ResponseEntity<JwtResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
-        JwtResponse response = authService.verifyOtpAndLogin(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authService.verifyOtpAndLogin(request));
     }
 
     @PostMapping("/register")
     public ResponseEntity<MessageResponse> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
-        MessageResponse response = authService.registerUser(registerRequest);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authService.registerUser(registerRequest));
     }
 
-    // Đăng nhập trực tiếp bằng Google OAuth2
     @PostMapping("/google")
     public ResponseEntity<JwtResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
-        JwtResponse response = authService.googleLogin(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authService.googleLogin(request));
+    }
+
+    private String bearerToken(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) return "";
+        return authorization.substring(7);
     }
 }

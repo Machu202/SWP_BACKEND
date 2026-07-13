@@ -8,7 +8,6 @@ import com.mangastudio.backend.entity.Task;
 import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.TaskService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -20,10 +19,13 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/tasks")
-@RequiredArgsConstructor
 public class TaskController {
 
     private final TaskService taskService;
+
+    public TaskController(TaskService taskService) {
+        this.taskService = taskService;
+    }
 
     // [FE-47] Lọc công việc của bản thân theo Role (Tự động nhận diện qua Token)
     @GetMapping("/my-tasks")
@@ -66,6 +68,27 @@ public class TaskController {
         return ResponseEntity.ok(toTaskResponse(updated));
     }
 
+    // Assistant starts work by downloading the immutable reference image.
+    @PatchMapping("/{taskId}/start")
+    public ResponseEntity<Map<String, Object>> startTask(
+            @PathVariable Long taskId,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        Task updated = taskService.startTask(taskId, userDetails.getId());
+        return ResponseEntity.ok(toTaskResponse(updated));
+    }
+
+    // Mangaka review decision is separate from drag/drop Kanban transitions.
+    @PatchMapping("/{taskId}/review")
+    public ResponseEntity<Map<String, Object>> reviewTask(
+            @PathVariable Long taskId,
+            @RequestParam boolean approved,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        Task updated = taskService.reviewTask(taskId, userDetails.getId(), approved);
+        return ResponseEntity.ok(toTaskResponse(updated));
+    }
+
     // Assistant nộp bài (Truyền lên link ảnh đã lưu từ Cloudinary)
     @PatchMapping("/{taskId}/submit")
     public ResponseEntity<Map<String, Object>> submitWork(
@@ -91,6 +114,11 @@ public class TaskController {
     private Map<String, Object> toTaskResponse(Task task) {
         Map<String, Object> dto = new HashMap<>();
         dto.put("id", task.getId());
+        long taskNumber = taskService.getSeriesTaskNumber(task);
+        dto.put("taskNumber", taskNumber);
+        dto.put("task_number", taskNumber);
+        dto.put("seriesTaskNumber", taskNumber);
+        dto.put("series_task_number", taskNumber);
         dto.put("description", task.getDescription());
         dto.put("status", task.getStatus());
         dto.put("submittedImageUrl", task.getSubmittedImageUrl());

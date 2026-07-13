@@ -1,6 +1,5 @@
 package com.mangastudio.backend.config;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,12 +19,16 @@ import com.mangastudio.backend.security.AuthTokenFilter;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     // TODO: Uncomment these lines after creating the security components
     private final AuthEntryPointJwt unauthorizedHandler;
     private final AuthTokenFilter authTokenFilter;
+
+    public SecurityConfig(AuthEntryPointJwt unauthorizedHandler, AuthTokenFilter authTokenFilter) {
+        this.unauthorizedHandler = unauthorizedHandler;
+        this.authTokenFilter = authTokenFilter;
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -58,7 +61,13 @@ public class SecurityConfig {
                         // Allow public access to Authentication APIs
                         .requestMatchers("/v3/api-docs").permitAll()
 
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers(
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/request-otp",
+                                "/api/v1/auth/verify-otp",
+                                "/api/v1/auth/google"
+                        ).permitAll()
                         // Allow public access to Swagger UI documentation
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // [BỔ SUNG FE-09] Mở cửa cho kết nối WebSocket Handshake

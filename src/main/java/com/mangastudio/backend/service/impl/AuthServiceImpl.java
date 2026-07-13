@@ -24,7 +24,6 @@ import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.security.JwtUtils;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.AuthService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -39,7 +38,6 @@ import java.time.LocalDateTime;
 import java.util.Random;
 
 @Service
-@RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
     private final AuthenticationManager authenticationManager;
@@ -51,6 +49,18 @@ public class AuthServiceImpl implements AuthService {
     // Inject the necessary dependencies for OTP and Email
     private final OtpRepository otpRepository;
     private final JavaMailSender mailSender;
+
+    public AuthServiceImpl(AuthenticationManager authenticationManager, UserRepository userRepository,
+                           RoleRepository roleRepository, PasswordEncoder encoder, JwtUtils jwtUtils,
+                           OtpRepository otpRepository, JavaMailSender mailSender) {
+        this.authenticationManager = authenticationManager;
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.encoder = encoder;
+        this.jwtUtils = jwtUtils;
+        this.otpRepository = otpRepository;
+        this.mailSender = mailSender;
+    }
 
     @Value("${manga.app.googleClientId}")
     private String googleClientId;
@@ -108,8 +118,11 @@ public class AuthServiceImpl implements AuthService {
                 userDetails, null, userDetails.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // 5. Generate the final JWT Token
-        String jwt = jwtUtils.generateJwtToken(authentication);
+        // 5. Generate the final JWT Token and invalidate any older login.
+        String sessionId = UUID.randomUUID().toString();
+        user.setActiveSessionId(sessionId);
+        userRepository.saveAndFlush(user);
+        String jwt = jwtUtils.generateJwtToken(authentication, sessionId);
 
         String role = userDetails.getAuthorities().stream()
                 .map(auth -> auth.getAuthority())
@@ -244,7 +257,10 @@ public class AuthServiceImpl implements AuthService {
                     userDetails, null, userDetails.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            String jwt = jwtUtils.generateJwtToken(authentication);
+            String sessionId = UUID.randomUUID().toString();
+            user.setActiveSessionId(sessionId);
+            userRepository.saveAndFlush(user);
+            String jwt = jwtUtils.generateJwtToken(authentication, sessionId);
             String role = userDetails.getAuthorities().stream()
                     .map(auth -> auth.getAuthority())
                     .findFirst()

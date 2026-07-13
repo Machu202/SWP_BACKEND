@@ -15,6 +15,7 @@ import java.util.Date;
 @Component
 public class JwtUtils {
     private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
+    private static final String SESSION_CLAIM = "sid";
 
     @Value("${manga.app.jwtSecret}")
     private String jwtSecret;
@@ -22,32 +23,48 @@ public class JwtUtils {
     @Value("${manga.app.jwtExpirationMs}")
     private int jwtExpirationMs;
 
-    // Generate token upon successful login
-    public String generateJwtToken(Authentication authentication) {
+    public String generateJwtToken(Authentication authentication, String sessionId) {
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
         return Jwts.builder()
-                .setSubject((userPrincipal.getUsername()))
+                .setSubject(userPrincipal.getUsername())
+                .claim(SESSION_CLAIM, sessionId)
+                .claim("uid", userPrincipal.getId())
                 .setIssuedAt(new Date())
-                .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(key(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    /**
+     * Compatibility overload for older call sites/tests. New login paths should
+     * always supply and persist a session id.
+     */
+    public String generateJwtToken(Authentication authentication) {
+        return generateJwtToken(authentication, java.util.UUID.randomUUID().toString());
     }
 
     private Key key() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
     }
 
-    // Extract username from token
     public String getUserNameFromJwtToken(String token) {
-        return Jwts.parserBuilder().setSigningKey(key()).build()
-               .parseClaimsJws(token).getBody().getSubject();
+        return claims(token).getSubject();
     }
 
-    // Validate the token's integrity and expiration
+    public String getSessionIdFromJwtToken(String token) {
+        Object value = claims(token).get(SESSION_CLAIM);
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private Claims claims(String token) {
+        return Jwts.parserBuilder().setSigningKey(key()).build()
+                .parseClaimsJws(token).getBody();
+    }
+
     public boolean validateJwtToken(String authToken) {
         try {
-            Jwts.parserBuilder().setSigningKey(key()).build().parseClaimsJws(authToken);
+            claims(authToken);
             return true;
         } catch (MalformedJwtException e) {
             logger.error("Invalid JWT token: {}", e.getMessage());

@@ -9,7 +9,10 @@ public interface TaskService {
     
     Task assignAssistantToTask(Long taskId, Long mangakaId, Long assistantId);
     Task updateTaskStatus(Long taskId, Long userId, String newStatus);
+    Task startTask(Long taskId, Long assistantId);
+    Task reviewTask(Long taskId, Long mangakaId, boolean approved);
     Task submitTaskWork(Long taskId, Long assistantId, String imageUrl);
 
     List<Task> getTasksBySeries(Long seriesId);
+    long getSeriesTaskNumber(Task task);
 }

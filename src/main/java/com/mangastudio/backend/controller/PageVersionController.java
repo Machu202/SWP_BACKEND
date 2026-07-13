@@ -5,24 +5,27 @@ import com.mangastudio.backend.entity.PageVersion;
 import com.mangastudio.backend.repository.PageRepository;
 import com.mangastudio.backend.repository.PageVersionRepository;
 import com.mangastudio.backend.security.UserDetailsImpl;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.security.access.AccessDeniedException;
 
 @RestController
 @RequestMapping("/api/v1/page-versions")
-@RequiredArgsConstructor
 public class PageVersionController {
 
     private final PageVersionRepository pageVersionRepository;
     private final PageRepository pageRepository;
+
+    public PageVersionController(PageVersionRepository pageVersionRepository, PageRepository pageRepository) {
+        this.pageVersionRepository = pageVersionRepository;
+        this.pageRepository = pageRepository;
+    }
 
     @GetMapping("/pages/{pageId}")
     public ResponseEntity<List<Map<String, Object>>> getVersionsByPage(@PathVariable Long pageId) {
@@ -62,25 +65,14 @@ public class PageVersionController {
         }
 
         if (!page.getChapter().getMangaSeries().getMangaka().getId().equals(userDetails.getId())) {
-            throw new RuntimeException("Error: You do not have permission to restore this page version");
+            throw new AccessDeniedException("You do not have permission to restore this page version");
         }
 
         page.setImageUrl(version.getImageUrl());
         Page restoredPage = pageRepository.saveAndFlush(page);
-
-        int nextVersionNumber = pageVersionRepository.findTopByPageIdOrderByVersionNumberDesc(page.getId())
-                .map(PageVersion::getVersionNumber)
-                .map(number -> number + 1)
-                .orElse(1);
-
-        PageVersion restoreSnapshot = PageVersion.builder()
-                .page(pageRepository.getReferenceById(page.getId()))
-                .imageUrl(version.getImageUrl())
-                .versionNumber(nextVersionNumber)
-                .createdAt(LocalDateTime.now())
-                .build();
-        pageVersionRepository.saveAndFlush(restoreSnapshot);
-
+        // Restoring means selecting an existing historical snapshot as the
+        // current page image. Do not clone it into a new version; otherwise
+        // restoring V1 incorrectly creates V2/V3 and the history becomes noisy.
         return ResponseEntity.ok(restoredPage);
     }
 }

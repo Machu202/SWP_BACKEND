@@ -46,4 +46,9 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     boolean existsByHitbox_Page_Chapter_IdAndStatusIgnoreCase(Long chapterId, String status);
     long countByHitbox_Page_Chapter_Id(Long chapterId);
     long countByHitbox_Page_Chapter_IdAndStatusIgnoreCase(Long chapterId, String status);
+
+    @Query("SELECT COUNT(t) FROM Task t " +
+           "JOIN t.hitbox hitbox JOIN hitbox.page page JOIN page.chapter chapter JOIN chapter.mangaSeries series " +
+           "WHERE series.id = :seriesId AND t.id <= :taskId")
+    long countSeriesTasksUpToId(@Param("seriesId") Long seriesId, @Param("taskId") Long taskId);
 }
