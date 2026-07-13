@@ -3,7 +3,6 @@ package com.mangastudio.backend.controller;
 import com.mangastudio.backend.entity.TantouFeedback;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.TantouFeedbackService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -13,10 +12,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/tantou-feedbacks")
-@RequiredArgsConstructor
 public class TantouFeedbackController {
 
     private final TantouFeedbackService tantouFeedbackService;
+
+    public TantouFeedbackController(TantouFeedbackService tantouFeedbackService) {
+        this.tantouFeedbackService = tantouFeedbackService;
+    }
 
     @PostMapping("/pages/{pageId}")
     public ResponseEntity<TantouFeedback> createFeedback(
@@ -34,8 +36,11 @@ public class TantouFeedbackController {
     }
 
     @GetMapping("/pages/{pageId}")
-    public ResponseEntity<List<TantouFeedback>> getPageFeedbacks(@PathVariable Long pageId) {
-        return ResponseEntity.ok(tantouFeedbackService.getFeedbacksByPage(pageId));
+    public ResponseEntity<List<TantouFeedback>> getPageFeedbacks(
+            @PathVariable Long pageId,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return ResponseEntity.ok(tantouFeedbackService.getFeedbacksByPage(pageId, userDetails.getId()));
     }
 
     @PatchMapping("/{feedbackId}/resolve")
