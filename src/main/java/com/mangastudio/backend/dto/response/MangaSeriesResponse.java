@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class MangaSeriesResponse {
     private Long id;
+    private Long displayNumber;
     private String title;
     private String genre;
     private String summary;
@@ -20,6 +21,7 @@ public class MangaSeriesResponse {
     public static class Builder {
         private final MangaSeriesResponse value = new MangaSeriesResponse();
         public Builder id(Long v) { value.id = v; return this; }
+        public Builder displayNumber(Long v) { value.displayNumber = v; return this; }
         public Builder title(String v) { value.title = v; return this; }
         public Builder genre(String v) { value.genre = v; return this; }
         public Builder summary(String v) { value.summary = v; return this; }
@@ -35,6 +37,8 @@ public class MangaSeriesResponse {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getDisplayNumber() { return displayNumber; }
+    public void setDisplayNumber(Long displayNumber) { this.displayNumber = displayNumber; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public String getGenre() { return genre; }

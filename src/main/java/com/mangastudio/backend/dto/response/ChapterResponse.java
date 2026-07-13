@@ -3,6 +3,7 @@ package com.mangastudio.backend.dto.response;
 public class ChapterResponse {
     private Long id;
     private Long seriesId;
+    private Long seriesDisplayNumber;
     private String seriesTitle;
     private Integer chapterNumber;
     private String title;
@@ -18,6 +19,7 @@ public class ChapterResponse {
         private final ChapterResponse value = new ChapterResponse();
         public Builder id(Long v) { value.id = v; return this; }
         public Builder seriesId(Long v) { value.seriesId = v; return this; }
+        public Builder seriesDisplayNumber(Long v) { value.seriesDisplayNumber = v; return this; }
         public Builder seriesTitle(String v) { value.seriesTitle = v; return this; }
         public Builder chapterNumber(Integer v) { value.chapterNumber = v; return this; }
         public Builder title(String v) { value.title = v; return this; }
@@ -33,6 +35,8 @@ public class ChapterResponse {
     public void setId(Long id) { this.id = id; }
     public Long getSeriesId() { return seriesId; }
     public void setSeriesId(Long seriesId) { this.seriesId = seriesId; }
+    public Long getSeriesDisplayNumber() { return seriesDisplayNumber; }
+    public void setSeriesDisplayNumber(Long seriesDisplayNumber) { this.seriesDisplayNumber = seriesDisplayNumber; }
     public String getSeriesTitle() { return seriesTitle; }
     public void setSeriesTitle(String seriesTitle) { this.seriesTitle = seriesTitle; }
     public Integer getChapterNumber() { return chapterNumber; }

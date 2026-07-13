@@ -211,6 +211,7 @@ public class ChapterServiceImpl implements ChapterService {
         return ChapterResponse.builder()
                 .id(chapter.getId())
                 .seriesId(series != null ? series.getId() : null)
+                .seriesDisplayNumber(series != null && series.getId() != null ? mangaSeriesRepository.countByIdLessThanEqual(series.getId()) : null)
                 .seriesTitle(series != null ? series.getTitle() : null)
                 .chapterNumber(chapter.getChapterNumber())
                 .title(chapter.getTitle())

@@ -11,6 +11,7 @@ public interface MangaSeriesService {
     MangaSeriesResponse createSeries(Long mangakaId, MangaSeriesCreateRequest request);
     MangaSeriesResponse getSeriesById(Long seriesId);
     List<MangaSeriesResponse> getAllSeriesByMangaka(Long mangakaId);
+    List<MangaSeriesResponse> getAllSeriesAssignedToTantou(Long tantouId);
     MangaSeriesResponse updateSeriesStatus(Long seriesId, Long currentUserId, String newStatus);
     MangaSeriesResponse assignTantou(Long seriesId, Long currentUserId, Long tantouId);
     MangaSeriesResponse submitToEditorialBoard(Long seriesId, Long currentUserId);

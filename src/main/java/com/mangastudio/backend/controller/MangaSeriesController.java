@@ -48,6 +48,14 @@ public class MangaSeriesController {
         return ResponseEntity.ok(responses);
     }
 
+    @GetMapping("/assigned-to-me")
+    @PreAuthorize("hasAuthority('ROLE_TANTOU EDITOR')")
+    @Operation(summary = "Get only manga series assigned to the authenticated Tantou Editor")
+    public ResponseEntity<List<MangaSeriesResponse>> getAssignedSeries(Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return ResponseEntity.ok(mangaSeriesService.getAllSeriesAssignedToTantou(userDetails.getId()));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<MangaSeriesResponse> getSeriesById(@PathVariable Long id) {
         MangaSeriesResponse response = mangaSeriesService.getSeriesById(id);

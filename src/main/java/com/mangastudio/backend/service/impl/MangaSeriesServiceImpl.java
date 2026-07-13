@@ -83,6 +83,18 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
     }
 
     @Override
+    public List<MangaSeriesResponse> getAllSeriesAssignedToTantou(Long tantouId) {
+        User tantou = userRepository.findById(tantouId)
+                .orElseThrow(() -> new RuntimeException("Error: Tantou Editor not found"));
+        if (!hasRole(tantou, "TANTOU EDITOR")) {
+            throw new AccessDeniedException("Only Tantou Editors can read assigned series.");
+        }
+        return mangaSeriesRepository.findAssignedToTantou(tantouId).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public MangaSeriesResponse updateSeriesStatus(Long seriesId, Long currentUserId, String newStatusStr) {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
@@ -194,6 +206,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
         return MangaSeriesResponse.builder()
                 .id(series.getId())
+                .displayNumber(series.getId() != null ? mangaSeriesRepository.countByIdLessThanEqual(series.getId()) : null)
                 .title(series.getTitle())
                 .genre(series.getGenre())
                 .summary(series.getSummary())
