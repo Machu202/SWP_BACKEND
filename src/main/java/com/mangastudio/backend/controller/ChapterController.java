@@ -5,20 +5,23 @@ import com.mangastudio.backend.dto.response.ChapterResponse;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.ChapterService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/chapters")
-@RequiredArgsConstructor
 public class ChapterController {
 
     private final ChapterService chapterService;
+
+    public ChapterController(ChapterService chapterService) {
+        this.chapterService = chapterService;
+    }
 
     @PostMapping
     public ResponseEntity<ChapterResponse> createChapter(
@@ -38,6 +41,13 @@ public class ChapterController {
     @GetMapping("/series/{seriesId}")
     public ResponseEntity<List<ChapterResponse>> getAllChaptersBySeries(@PathVariable Long seriesId) {
         return ResponseEntity.ok(chapterService.getAllChaptersBySeries(seriesId));
+    }
+
+    @GetMapping("/tantou-review")
+    @PreAuthorize("hasAuthority('ROLE_TANTOU EDITOR')")
+    public ResponseEntity<List<ChapterResponse>> getTantouReviewQueue(Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return ResponseEntity.ok(chapterService.getTantouReviewQueue(userDetails.getId()));
     }
 
     // [FE-30] API Cập nhật trạng thái

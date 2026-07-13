@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/page-versions")
@@ -22,10 +25,26 @@ public class PageVersionController {
     private final PageRepository pageRepository;
 
     @GetMapping("/pages/{pageId}")
-    public ResponseEntity<List<PageVersion>> getVersionsByPage(@PathVariable Long pageId) {
+    public ResponseEntity<List<Map<String, Object>>> getVersionsByPage(@PathVariable Long pageId) {
         pageRepository.findById(pageId)
                 .orElseThrow(() -> new RuntimeException("Error: Page not found"));
-        return ResponseEntity.ok(pageVersionRepository.findByPageIdOrderByCreatedAtDesc(pageId));
+        List<Map<String, Object>> response = pageVersionRepository.findByPageIdOrderByCreatedAtDesc(pageId)
+                .stream()
+                .map(version -> {
+                    Map<String, Object> dto = new LinkedHashMap<>();
+                    dto.put("id", version.getId());
+                    dto.put("pageId", pageId);
+                    dto.put("page_id", pageId);
+                    dto.put("imageUrl", version.getImageUrl());
+                    dto.put("image_url", version.getImageUrl());
+                    dto.put("versionNumber", version.getVersionNumber());
+                    dto.put("version_number", version.getVersionNumber());
+                    dto.put("createdAt", version.getCreatedAt());
+                    dto.put("created_at", version.getCreatedAt());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{versionId}/restore")
@@ -49,7 +68,10 @@ public class PageVersionController {
         page.setImageUrl(version.getImageUrl());
         Page restoredPage = pageRepository.saveAndFlush(page);
 
-        int nextVersionNumber = pageVersionRepository.countByPageId(page.getId()) + 1;
+        int nextVersionNumber = pageVersionRepository.findTopByPageIdOrderByVersionNumberDesc(page.getId())
+                .map(PageVersion::getVersionNumber)
+                .map(number -> number + 1)
+                .orElse(1);
 
         PageVersion restoreSnapshot = PageVersion.builder()
                 .page(pageRepository.getReferenceById(page.getId()))

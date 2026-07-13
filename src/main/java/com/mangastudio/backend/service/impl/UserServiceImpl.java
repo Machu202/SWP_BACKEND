@@ -7,7 +7,6 @@ import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.RoleRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.UserService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,11 +14,15 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository; // Tiêm kho chứa Role vào đây
+    private final RoleRepository roleRepository;
+
+    public UserServiceImpl(UserRepository userRepository, RoleRepository roleRepository) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+    }
 
     @Override
     public UserProfileResponse getUserProfile(String username) {
@@ -34,11 +37,20 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Error: User not found with username: " + username));
 
-        if (request.getFullName() != null && !request.getFullName().isBlank()) {
-            user.setFullName(request.getFullName());
+        if (request.getFullName() != null) {
+            user.setFullName(normalizeNullable(request.getFullName()));
         }
-        if (request.getProfileData() != null && !request.getProfileData().isBlank()) {
-            user.setProfileData(request.getProfileData());
+        if (request.getPhoneNumber() != null) {
+            String normalizedPhone = normalizeNullable(request.getPhoneNumber());
+            if (normalizedPhone != null
+                    && !normalizedPhone.equals(user.getPhoneNumber())
+                    && userRepository.existsByPhoneNumber(normalizedPhone)) {
+                throw new RuntimeException("Phone number is already used by another account.");
+            }
+            user.setPhoneNumber(normalizedPhone);
+        }
+        if (request.getProfileData() != null) {
+            user.setProfileData(normalizeNullable(request.getProfileData()));
         }
 
         User updatedUser = userRepository.save(user);
@@ -92,11 +104,18 @@ public class UserServiceImpl implements UserService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .phoneNumber(user.getPhoneNumber())
                 .fullName(user.getFullName())
                 .roleName(user.getRole().getRoleName())
                 .profileData(user.getProfileData())
-                .isActive(user.getIsActive()) // Cập nhật mapping
+                .isActive(user.getIsActive())
+                .createdAt(user.getCreatedAt())
                 .build();
     }
-    
+
+    private String normalizeNullable(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
 }

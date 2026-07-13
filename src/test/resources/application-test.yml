@@ -1,0 +1,30 @@
+manga:
+  app:
+    jwtSecret: test-only-jwt-secret-0123456789abcdef0123456789abcdef
+    jwtExpirationMs: 86400000
+    googleClientId: test-client-id
+
+cloudinary:
+  cloud-name: test
+  api-key: test
+  api-secret: test
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:mangastudio;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=USER,ROLE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+    hikari:
+      max-lifetime: 600000
+      idle-timeout: 300000
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+  mail:
+    host: localhost
+    port: 2525
+    username: test
+    password: test

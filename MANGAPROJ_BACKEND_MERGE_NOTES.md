@@ -1,3 +1,5 @@
+> **Historical note:** The final credential-restored package intentionally restores the original runtime values. See `/CREDENTIAL_RESTORE_NOTES.md` and `/README_RUN.md`.
+
 # MANGAPROJ Backend Merge Notes
 
 ## Request

@@ -7,4 +7,5 @@ import java.util.List;
 public interface HitboxCommentRepository extends JpaRepository<HitboxComment, Long> {
     // Lấy toàn bộ comment của một Hitbox, sắp xếp theo thời gian cũ -> mới
     List<HitboxComment> findByHitboxIdOrderByCreatedAtAsc(Long hitboxId);
+    void deleteByHitboxId(Long hitboxId);
 }

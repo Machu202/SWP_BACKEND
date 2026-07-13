@@ -5,7 +5,6 @@ import com.mangastudio.backend.entity.Hitbox;
 import com.mangastudio.backend.entity.Task;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.WorkspaceService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -15,10 +14,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/workspace")
-@RequiredArgsConstructor
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
+
+    public WorkspaceController(WorkspaceService workspaceService) {
+        this.workspaceService = workspaceService;
+    }
 
     @PostMapping("/pages/{pageId}/hitboxes")
     public ResponseEntity<Hitbox> createHitbox(
@@ -42,8 +44,11 @@ public class WorkspaceController {
     }
 
     @DeleteMapping("/hitboxes/{hitboxId}")
-    public ResponseEntity<String> deleteHitbox(@PathVariable Long hitboxId) {
-        workspaceService.deleteHitbox(hitboxId);
+    public ResponseEntity<String> deleteHitbox(
+            @PathVariable Long hitboxId,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        workspaceService.deleteHitbox(hitboxId, userDetails.getId());
         return ResponseEntity.ok("Hitbox deleted successfully.");
     }
 

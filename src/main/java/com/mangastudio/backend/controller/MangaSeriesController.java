@@ -8,7 +8,6 @@ import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.MangaSeriesService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -19,12 +18,16 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/manga-series")
-@RequiredArgsConstructor
 public class MangaSeriesController {
 
     private final MangaSeriesService mangaSeriesService;
 
+    public MangaSeriesController(MangaSeriesService mangaSeriesService) {
+        this.mangaSeriesService = mangaSeriesService;
+    }
+
     @PostMapping
+    @PreAuthorize("hasRole('MANGAKA')")
     public ResponseEntity<MangaSeriesResponse> createSeries(
             Authentication authentication,
             @Valid @RequestBody MangaSeriesCreateRequest request) {
@@ -52,16 +55,41 @@ public class MangaSeriesController {
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasRole('MANGAKA')")
     public ResponseEntity<MangaSeriesResponse> updateSeriesStatus(
             @PathVariable Long id,
-            @RequestParam String newStatus) {
-        
-        MangaSeriesResponse response = mangaSeriesService.updateSeriesStatus(id, newStatus);
+            @RequestParam String newStatus,
+            Authentication authentication) {
+
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        MangaSeriesResponse response = mangaSeriesService.updateSeriesStatus(id, userDetails.getId(), newStatus);
         return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/tantou")
+    @PreAuthorize("hasAnyRole('MANGAKA', 'ADMIN')")
+    @Operation(summary = "Assign a Tantou Editor to a manga series before chapter review")
+    public ResponseEntity<MangaSeriesResponse> assignTantou(
+            @PathVariable Long id,
+            @RequestParam Long tantouId,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return ResponseEntity.ok(mangaSeriesService.assignTantou(id, userDetails.getId(), tantouId));
+    }
+
+    @PatchMapping("/{id}/submit-to-board")
+    @PreAuthorize("hasAuthority('ROLE_TANTOU EDITOR')")
+    @Operation(summary = "Assigned Tantou submits a fully approved series to the Editorial Board")
+    public ResponseEntity<MangaSeriesResponse> submitToEditorialBoard(
+            @PathVariable Long id,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return ResponseEntity.ok(mangaSeriesService.submitToEditorialBoard(id, userDetails.getId()));
     }
 
     // [BỔ SUNG] Cập nhật Metadata của dự án
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('MANGAKA')")
     public ResponseEntity<MangaSeriesResponse> updateSeriesMetadata(
             @PathVariable Long id,
             Authentication authentication,
@@ -76,6 +104,7 @@ public class MangaSeriesController {
 
     // [BỔ SUNG] Xóa dự án nháp
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('MANGAKA')")
     public ResponseEntity<String> deleteSeries(
             @PathVariable Long id,
             Authentication authentication) {

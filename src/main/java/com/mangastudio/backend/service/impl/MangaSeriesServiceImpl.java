@@ -3,29 +3,42 @@ package com.mangastudio.backend.service.impl;
 import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
 import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
+import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.entity.User;
+import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.MangaSeriesService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import com.mangastudio.backend.repository.BoardVoteRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 @Service
-@RequiredArgsConstructor
 public class MangaSeriesServiceImpl implements MangaSeriesService {
 
     private final MangaSeriesRepository mangaSeriesRepository;
     private final UserRepository userRepository;
     private final BoardVoteRepository boardVoteRepository;
+    private final ChapterRepository chapterRepository;
+
+    public MangaSeriesServiceImpl(MangaSeriesRepository mangaSeriesRepository,
+                                  UserRepository userRepository,
+                                  BoardVoteRepository boardVoteRepository,
+                                  ChapterRepository chapterRepository) {
+        this.mangaSeriesRepository = mangaSeriesRepository;
+        this.userRepository = userRepository;
+        this.boardVoteRepository = boardVoteRepository;
+        this.chapterRepository = chapterRepository;
+    }
 
     @Override
     @Transactional
@@ -33,11 +46,17 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         User mangaka = userRepository.findById(mangakaId)
                 .orElseThrow(() -> new RuntimeException("Error: Mangaka not found with ID: " + mangakaId));
 
+        if (!hasRole(mangaka, "MANGAKA")) {
+            throw new AccessDeniedException("Only Mangaka users can create manga series.");
+        }
+
         MangaSeries newSeries = MangaSeries.builder()
                 .mangaka(mangaka)
                 .title(request.getTitle())
                 .genre(request.getGenre())
                 .summary(request.getSummary())
+                .description(request.getDescription())
+                .coverImageUrl(request.getCoverImageUrl())
                 .status("DRAFT")
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -65,9 +84,16 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
     @Override
     @Transactional
-    public MangaSeriesResponse updateSeriesStatus(Long seriesId, String newStatusStr) {
+    public MangaSeriesResponse updateSeriesStatus(Long seriesId, Long currentUserId, String newStatusStr) {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new RuntimeException("Error: User not found"));
+
+        if (!hasRole(currentUser, "MANGAKA") || !series.getMangaka().getId().equals(currentUserId)) {
+            throw new AccessDeniedException("You do not have permission to change this series status.");
+        }
 
         String currentStatus = series.getStatus();
         String newStatus = newStatusStr.toUpperCase();
@@ -80,7 +106,8 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                 if (newStatus.equals("REVIEWING")) isValidTransition = true;
                 break;
             case "REVIEWING":
-                if (newStatus.equals("APPROVED") || newStatus.equals("REJECTED")) isValidTransition = true;
+                // Final approval/rejection is exclusively handled by the Admin decision endpoint.
+                isValidTransition = false;
                 break;
             case "REJECTED":
                 if (newStatus.equals("DRAFT")) isValidTransition = true;
@@ -103,8 +130,15 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         }
 
         if (!isValidTransition) {
-            throw new RuntimeException("Error: Invalid state transition! Cannot move from " 
+            throw new RuntimeException("Error: Invalid state transition! Cannot move from "
                     + normalizedCurrentStatus + " to " + newStatus);
+        }
+
+        if ("REVIEWING".equals(newStatus)) {
+            validateAllChaptersApprovedForBoard(series);
+            // A rejected series may be resubmitted after returning to DRAFT. Old votes
+            // must never count toward a new Editorial Board review cycle.
+            boardVoteRepository.deleteByMangaSeriesId(seriesId);
         }
 
         series.setStatus(newStatus);
@@ -120,14 +154,16 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
 
-        // Xác thực quyền sở hữu
+        // Ownership violations are authorization failures, not malformed requests.
         if (!series.getMangaka().getId().equals(currentUserId)) {
-            throw new RuntimeException("Error: You do not have permission to modify this series");
+            throw new AccessDeniedException("You do not have permission to modify this series.");
         }
 
         if (request.getTitle() != null && !request.getTitle().isBlank()) series.setTitle(request.getTitle());
         if (request.getGenre() != null) series.setGenre(request.getGenre());
         if (request.getSummary() != null) series.setSummary(request.getSummary());
+        if (request.getDescription() != null) series.setDescription(request.getDescription());
+        if (request.getCoverImageUrl() != null && !request.getCoverImageUrl().isBlank()) series.setCoverImageUrl(request.getCoverImageUrl());
 
         MangaSeries updatedSeries = mangaSeriesRepository.save(series);
         return mapToResponse(updatedSeries);
@@ -140,9 +176,9 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
 
-        // Xác thực quyền sở hữu
+        // Ownership violations are authorization failures, not malformed requests.
         if (!series.getMangaka().getId().equals(currentUserId)) {
-            throw new RuntimeException("Error: You do not have permission to delete this series");
+            throw new AccessDeniedException("You do not have permission to delete this series.");
         }
         
         // Khóa an toàn: Chỉ được xóa bản nháp
@@ -161,12 +197,72 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                 .title(series.getTitle())
                 .genre(series.getGenre())
                 .summary(series.getSummary())
+                .description(series.getDescription())
+                .coverImageUrl(series.getCoverImageUrl())
                 .status(series.getStatus())
                 .mangakaName(series.getMangaka().getFullName())
+                .tantouId(series.getTantou() != null ? series.getTantou().getId() : null)
                 .tantouName(tantouName)
                 .createdAt(series.getCreatedAt())
                 .build();
     }
+    @Override
+    @Transactional
+    public MangaSeriesResponse assignTantou(Long seriesId, Long currentUserId, Long tantouId) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new RuntimeException("Error: User not found"));
+
+        boolean ownerMangaka = hasRole(currentUser, "MANGAKA")
+                && series.getMangaka() != null
+                && series.getMangaka().getId().equals(currentUserId);
+        boolean admin = hasRole(currentUser, "ADMIN");
+        if (!ownerMangaka && !admin) {
+            throw new AccessDeniedException("You do not have permission to assign a Tantou Editor to this series.");
+        }
+
+        String status = series.getStatus() == null ? "DRAFT" : series.getStatus().trim().toUpperCase();
+        if (status.equals("CANCELLED") || status.equals("COMPLETED") || status.equals("ARCHIVED")) {
+            throw new RuntimeException("Error: A Tantou Editor cannot be assigned to a closed series.");
+        }
+
+        User tantou = userRepository.findById(tantouId)
+                .orElseThrow(() -> new RuntimeException("Error: Tantou Editor not found"));
+        if (!hasRole(tantou, "TANTOU EDITOR")) {
+            throw new RuntimeException("Error: The assigned user must have the Tantou Editor role.");
+        }
+
+        series.setTantou(tantou);
+        return mapToResponse(mangaSeriesRepository.save(series));
+    }
+
+    @Override
+    @Transactional
+    public MangaSeriesResponse submitToEditorialBoard(Long seriesId, Long currentUserId) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new RuntimeException("Error: User not found"));
+
+        boolean assignedTantou = hasRole(currentUser, "TANTOU EDITOR")
+                && series.getTantou() != null
+                && series.getTantou().getId().equals(currentUserId);
+        if (!assignedTantou) {
+            throw new AccessDeniedException("Only the Tantou Editor assigned to this series can submit it to the Editorial Board.");
+        }
+
+        String status = normalizeStatus(series.getStatus(), "DRAFT");
+        if (!"DRAFT".equals(status)) {
+            throw new RuntimeException("Error: Only a DRAFT series can be submitted to the Editorial Board. Current status: " + status + ".");
+        }
+
+        validateAllChaptersApprovedForBoard(series);
+        boardVoteRepository.deleteByMangaSeriesId(seriesId);
+        series.setStatus("REVIEWING");
+        return mapToResponse(mangaSeriesRepository.save(series));
+    }
+
     // [FE-17] Triển khai logic phán quyết của Admin
     @Override
     @Transactional
@@ -198,22 +294,67 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
     @Transactional
     public MangaSeries handleAdminDecision(Long seriesId, Boolean isApproved, Long tantouId) {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
-                .orElseThrow(() -> new RuntimeException("Error: Manga Series không tồn tại"));
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series does not exist."));
 
-        if (isApproved) {
-            series.setStatus("APPROVED");
+        if (!"REVIEWING".equalsIgnoreCase(series.getStatus())) {
+            throw new RuntimeException("Error: The series must be in 'REVIEWING' status for an Admin decision.");
+        }
 
-            // LOGIC MỚI: Nếu Admin truyền lên ID của Biên tập viên, thực hiện gán ngay!
+        if (Boolean.TRUE.equals(isApproved)) {
+            long approvedVotes = boardVoteRepository.countByMangaSeriesIdAndIsApproved(seriesId, true);
+            if (approvedVotes == 0) {
+                throw new RuntimeException("Error: Cannot approve a series without at least one Editorial Board approval vote.");
+            }
+
             if (tantouId != null) {
                 User tantouEditor = userRepository.findById(tantouId)
-                        .orElseThrow(() -> new RuntimeException("Error: Tài khoản Tantou Editor không tồn tại"));
+                        .orElseThrow(() -> new RuntimeException("Error: Tantou Editor account does not exist."));
+                if (!hasRole(tantouEditor, "TANTOU EDITOR")) {
+                    throw new RuntimeException("Error: The assigned user must have the Tantou Editor role.");
+                }
                 series.setTantou(tantouEditor);
             }
+            series.setStatus("APPROVED");
         } else {
             series.setStatus("REJECTED");
         }
 
         return mangaSeriesRepository.save(series);
+    }
+
+    private void validateAllChaptersApprovedForBoard(MangaSeries series) {
+        if (series.getTantou() == null) {
+            throw new RuntimeException("Error: Assign a Tantou Editor before Editorial Board review.");
+        }
+
+        List<Chapter> chapters = chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(series.getId());
+        if (chapters.isEmpty()) {
+            throw new RuntimeException("Error: Create at least one chapter before Editorial Board review.");
+        }
+
+        List<Chapter> unfinished = chapters.stream()
+                .filter(chapter -> !"APPROVED".equals(normalizeStatus(chapter.getPublishStatus(), "DRAFT")))
+                .toList();
+        if (!unfinished.isEmpty()) {
+            String chapterNumbers = unfinished.stream()
+                    .map(chapter -> chapter.getChapterNumber() == null
+                            ? String.valueOf(chapter.getId())
+                            : String.valueOf(chapter.getChapterNumber()))
+                    .collect(Collectors.joining(", "));
+            throw new RuntimeException("Error: Every chapter must be APPROVED by the assigned Tantou before Editorial Board review. Pending chapter(s): " + chapterNumbers + ".");
+        }
+    }
+
+    private String normalizeStatus(String value, String fallback) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return normalized.isBlank() ? fallback : normalized;
+    }
+
+    private boolean hasRole(User user, String expectedRole) {
+        return user != null
+                && user.getRole() != null
+                && user.getRole().getRoleName() != null
+                && user.getRole().getRoleName().trim().equalsIgnoreCase(expectedRole);
     }
 
     @Override

@@ -1,27 +1,38 @@
 package com.mangastudio.backend.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private final String[] allowedOrigins;
+
+    public WebSocketConfig(@Value("${app.cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .toArray(String[]::new);
+    }
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Mở cổng /ws cho Frontend kết nối. Cấu hình SockJS làm phương án dự phòng nếu trình duyệt cũ.
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:5173") // Đảm bảo khớp với URL của Frontend
+                .setAllowedOrigins(allowedOrigins)
                 .withSockJS();
     }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // Cấu hình tiền tố cho các kênh phát sóng (Broker)
-        registry.enableSimpleBroker("/topic");
+        registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
+        registry.setUserDestinationPrefix("/user");
     }
 }

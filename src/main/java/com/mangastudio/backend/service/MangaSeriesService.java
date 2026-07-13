@@ -11,7 +11,9 @@ public interface MangaSeriesService {
     MangaSeriesResponse createSeries(Long mangakaId, MangaSeriesCreateRequest request);
     MangaSeriesResponse getSeriesById(Long seriesId);
     List<MangaSeriesResponse> getAllSeriesByMangaka(Long mangakaId);
-    MangaSeriesResponse updateSeriesStatus(Long seriesId, String newStatus);
+    MangaSeriesResponse updateSeriesStatus(Long seriesId, Long currentUserId, String newStatus);
+    MangaSeriesResponse assignTantou(Long seriesId, Long currentUserId, Long tantouId);
+    MangaSeriesResponse submitToEditorialBoard(Long seriesId, Long currentUserId);
     
     // [BỔ SUNG] Cập nhật thông tin truyện và Xóa truyện
     MangaSeriesResponse updateSeriesMetadata(Long seriesId, Long currentUserId, MangaSeriesUpdateRequest request);

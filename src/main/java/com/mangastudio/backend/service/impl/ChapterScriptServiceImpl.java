@@ -22,8 +22,10 @@ public class ChapterScriptServiceImpl implements ChapterScriptService {
 
     @Override
     public ChapterScript getScriptByChapter(Long chapterId) {
-        return scriptRepository.findByChapterId(chapterId)
-                .orElseThrow(() -> new RuntimeException("Error: Script not found for this chapter"));
+        chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Error: Chapter not found"));
+        // A chapter without a script is a valid empty state for the UI.
+        return scriptRepository.findByChapterId(chapterId).orElse(null);
     }
 
     @Override

@@ -14,4 +14,7 @@ public interface BoardVoteRepository extends JpaRepository<BoardVote, Long> {
     
     // Đếm số phiếu theo trạng thái (Đồng ý / Từ chối)
     long countByMangaSeriesIdAndIsApproved(Long seriesId, Boolean isApproved);
+
+    // Clear stale votes before a rejected series enters a new Board review cycle.
+    void deleteByMangaSeriesId(Long seriesId);
 }
