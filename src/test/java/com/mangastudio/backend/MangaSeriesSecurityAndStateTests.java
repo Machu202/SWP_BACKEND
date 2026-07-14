@@ -164,6 +164,44 @@ class MangaSeriesSecurityAndStateTests {
         verify(mangaSeriesRepository).save(series);
     }
 
+
+    @Test
+    void rejectedOwnerCanRevertSeriesToDraftWithoutDeletingVotesEarly() {
+        User owner = user(2L, "Mangaka");
+        MangaSeries series = series(30L, owner, "REJECTED");
+        when(mangaSeriesRepository.findById(30L)).thenReturn(Optional.of(series));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(owner));
+        when(mangaSeriesRepository.save(series)).thenReturn(series);
+
+        var response = service.updateSeriesStatus(30L, 2L, "DRAFT");
+
+        assertEquals("DRAFT", response.getStatus());
+        assertEquals("DRAFT", series.getStatus());
+        verify(boardVoteRepository, never()).deleteByMangaSeriesId(30L);
+        verify(mangaSeriesRepository).save(series);
+    }
+
+    @Test
+    void resubmittingDraftStartsFreshBoardVoteCycle() {
+        User owner = user(2L, "Mangaka");
+        User tantou = user(4L, "Tantou Editor");
+        MangaSeries series = series(31L, owner, "DRAFT");
+        series.setTantou(tantou);
+        when(mangaSeriesRepository.findById(31L)).thenReturn(Optional.of(series));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(owner));
+        when(chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(31L)).thenReturn(java.util.List.of(
+                com.mangastudio.backend.entity.Chapter.builder()
+                        .id(301L).mangaSeries(series).chapterNumber(1).title("Chapter 1").publishStatus("APPROVED").build()
+        ));
+        when(mangaSeriesRepository.save(series)).thenReturn(series);
+
+        var response = service.updateSeriesStatus(31L, 2L, "REVIEWING");
+
+        assertEquals("REVIEWING", response.getStatus());
+        verify(boardVoteRepository).deleteByMangaSeriesId(31L);
+        verify(mangaSeriesRepository).save(series);
+    }
+
     private User user(Long id, String roleName) {
         return User.builder()
                 .id(id)

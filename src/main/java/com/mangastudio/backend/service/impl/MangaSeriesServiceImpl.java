@@ -150,7 +150,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
             validateAllChaptersApprovedForBoard(series);
             // A rejected series may be resubmitted after returning to DRAFT. Old votes
             // must never count toward a new Editorial Board review cycle.
-            boardVoteRepository.deleteByMangaSeriesId(seriesId);
+            resetBoardVotesForNewReviewCycle(seriesId);
         }
 
         series.setStatus(newStatus);
@@ -271,7 +271,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         }
 
         validateAllChaptersApprovedForBoard(series);
-        boardVoteRepository.deleteByMangaSeriesId(seriesId);
+        resetBoardVotesForNewReviewCycle(seriesId);
         series.setStatus("REVIEWING");
         return mapToResponse(mangaSeriesRepository.save(series));
     }
@@ -333,6 +333,14 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         }
 
         return mangaSeriesRepository.save(series);
+    }
+
+    /**
+     * A resubmission is a new Editorial Board review cycle. Votes from a prior
+     * rejection/decision must never be reused for the edited draft.
+     */
+    private void resetBoardVotesForNewReviewCycle(Long seriesId) {
+        boardVoteRepository.deleteByMangaSeriesId(seriesId);
     }
 
     private void validateAllChaptersApprovedForBoard(MangaSeries series) {
