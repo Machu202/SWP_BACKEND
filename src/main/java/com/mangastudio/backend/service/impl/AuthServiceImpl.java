@@ -26,6 +26,7 @@ import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.AuthService;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -135,9 +136,33 @@ public class AuthServiceImpl implements AuthService {
         return new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), role);
     }
 
+    private static final java.util.Map<String, String> PUBLIC_REGISTRATION_ROLES = java.util.Map.of(
+            "mangaka", "Mangaka",
+            "assistant", "Assistant",
+            "tantou editor", "Tantou Editor",
+            "editorial board", "Editorial Board"
+    );
+
     @Override
     @Transactional
     public MessageResponse registerUser(RegisterRequest request) {
+        String requestedRole = request.getRole() == null ? "" : request.getRole().trim();
+        String normalizedRole = requestedRole
+                .replaceFirst("(?i)^ROLE_", "")
+                .replace('_', ' ')
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(java.util.Locale.ROOT);
+
+        if ("admin".equals(normalizedRole)) {
+            throw new AccessDeniedException("Admin accounts cannot be created through public registration.");
+        }
+
+        String publicRoleName = PUBLIC_REGISTRATION_ROLES.get(normalizedRole);
+        if (publicRoleName == null) {
+            throw new RuntimeException("Error: Public registration only supports Mangaka, Assistant, Tantou Editor, or Editorial Board.");
+        }
+
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Error: Username is already taken!");
         }
@@ -162,7 +187,7 @@ public class AuthServiceImpl implements AuthService {
             phone = null;
         }
 
-        Role userRole = roleRepository.findByRoleName(request.getRole())
+        Role userRole = roleRepository.findByRoleName(publicRoleName)
                 .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
 
         User user = User.builder()
