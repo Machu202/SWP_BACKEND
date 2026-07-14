@@ -32,6 +32,8 @@ public class TaskResponse {
 
     private Long pageId;
     private Integer pageNumber;
+    private Double pageWidth;
+    private Double pageHeight;
     private String referenceImageUrl;
 
     private Long chapterId;
@@ -84,7 +86,9 @@ public class TaskResponse {
             if (page != null) {
                 response.setPageId(page.getId());
                 response.setPageNumber(page.getPageNumber());
-                response.setReferenceImageUrl(page.getImageUrl());
+                response.setPageWidth(page.getWidth());
+                response.setPageHeight(page.getHeight());
+                response.setReferenceImageUrl(task.getReferenceImageUrl() != null ? task.getReferenceImageUrl() : page.getImageUrl());
 
                 Chapter chapter = page.getChapter();
                 if (chapter != null) {
@@ -209,6 +213,11 @@ public class TaskResponse {
     public void setPageNumber(Integer pageNumber) {
         this.pageNumber = pageNumber;
     }
+
+    public Double getPageWidth() { return pageWidth; }
+    public void setPageWidth(Double pageWidth) { this.pageWidth = pageWidth; }
+    public Double getPageHeight() { return pageHeight; }
+    public void setPageHeight(Double pageHeight) { this.pageHeight = pageHeight; }
 
     public String getReferenceImageUrl() {
         return referenceImageUrl;

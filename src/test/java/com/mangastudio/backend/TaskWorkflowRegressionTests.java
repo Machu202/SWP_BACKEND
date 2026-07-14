@@ -4,6 +4,8 @@ import com.mangastudio.backend.entity.*;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.TaskRepository;
 import com.mangastudio.backend.repository.UserRepository;
+import com.mangastudio.backend.repository.PageRepository;
+import com.mangastudio.backend.repository.PageVersionRepository;
 import com.mangastudio.backend.service.impl.TaskServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,7 +29,7 @@ class TaskWorkflowRegressionTests {
         taskRepository = mock(TaskRepository.class);
         userRepository = mock(UserRepository.class);
         seriesRepository = mock(MangaSeriesRepository.class);
-        service = new TaskServiceImpl(taskRepository, userRepository, seriesRepository);
+        service = new TaskServiceImpl(taskRepository, userRepository, seriesRepository, mock(PageRepository.class), mock(PageVersionRepository.class));
         mangaka = user(1L, "Mangaka");
         assistant = user(2L, "Assistant");
         when(userRepository.findById(1L)).thenReturn(Optional.of(mangaka));
@@ -69,6 +71,6 @@ class TaskWorkflowRegressionTests {
         Page page = Page.builder().id(30L).chapter(chapter).pageNumber(1).imageUrl("reference.png").build();
         Hitbox hitbox = Hitbox.builder().id(40L).page(page).createdBy(mangaka).xCoord(1D).yCoord(1D).width(10D).height(10D).build();
         return Task.builder().id(id).hitbox(hitbox).mangaka(mangaka).assistant(assistant)
-                .status(status).description("Task").build();
+                .status(status).description("Task").submittedImageUrl("submitted.png").build();
     }
 }

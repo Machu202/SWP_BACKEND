@@ -106,6 +106,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
         Task newTask = Task.builder()
                 .hitbox(hitbox)
                 .mangaka(mangaka)
+                .referenceImageUrl(hitbox.getPage() != null ? hitbox.getPage().getImageUrl() : null)
                 .status("TODO")
                 .description(taskRequest.getDescription())
                 .build();

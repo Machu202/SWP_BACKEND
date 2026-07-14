@@ -126,6 +126,8 @@ public class TaskController {
         dto.put("series_task_number", taskNumber);
         dto.put("description", task.getDescription());
         dto.put("status", task.getStatus());
+        dto.put("referenceImageUrl", task.getReferenceImageUrl());
+        dto.put("reference_image_url", task.getReferenceImageUrl());
         dto.put("submittedImageUrl", task.getSubmittedImageUrl());
         dto.put("submitted_image_url", task.getSubmittedImageUrl());
         dto.put("createdAt", task.getCreatedAt());
@@ -175,16 +177,26 @@ public class TaskController {
                 dto.put("page_id", page.getId());
                 dto.put("pageNumber", page.getPageNumber());
                 dto.put("page_number", page.getPageNumber());
+                dto.put("pageWidth", page.getWidth());
+                dto.put("page_width", page.getWidth());
+                dto.put("pageHeight", page.getHeight());
+                dto.put("page_height", page.getHeight());
                 dto.put("pageImageUrl", page.getImageUrl());
                 dto.put("page_image_url", page.getImageUrl());
-                dto.put("referenceImageUrl", page.getImageUrl());
-                dto.put("reference_image_url", page.getImageUrl());
+                String immutableReference = task.getReferenceImageUrl();
+                if (immutableReference == null || immutableReference.isBlank()) immutableReference = page.getImageUrl();
+                dto.put("referenceImageUrl", immutableReference);
+                dto.put("reference_image_url", immutableReference);
                 hitboxDto.put("pageId", page.getId());
                 hitboxDto.put("page_id", page.getId());
                 hitboxDto.put("pageNumber", page.getPageNumber());
                 hitboxDto.put("page_number", page.getPageNumber());
                 hitboxDto.put("pageImageUrl", page.getImageUrl());
                 hitboxDto.put("page_image_url", page.getImageUrl());
+                hitboxDto.put("pageWidth", page.getWidth());
+                hitboxDto.put("page_width", page.getWidth());
+                hitboxDto.put("pageHeight", page.getHeight());
+                hitboxDto.put("page_height", page.getHeight());
 
                 Chapter chapter = page.getChapter();
                 if (chapter != null) {

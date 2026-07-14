@@ -82,6 +82,37 @@ public class TantouFeedbackServiceImpl implements TantouFeedbackService {
 
     @Override
     @Transactional
+    public TantouFeedback addMangakaComment(Long feedbackId, Long userId, String content) {
+        TantouFeedback parent = tantouFeedbackRepository.findById(feedbackId)
+                .orElseThrow(() -> new RuntimeException("Error: Feedback not found"));
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Error: User not found"));
+        User mangaka = parent.getPage().getChapter().getMangaSeries().getMangaka();
+        String roleName = currentUser.getRole() != null ? currentUser.getRole().getRoleName() : "";
+        boolean allowed = "Admin".equalsIgnoreCase(roleName)
+                || (mangaka != null && mangaka.getId().equals(userId));
+        if (!allowed) {
+            throw new AccessDeniedException("Only the owning Mangaka can comment on Tantou feedback.");
+        }
+        if (content == null || content.isBlank()) {
+            throw new RuntimeException("Error: Comment content is required.");
+        }
+
+        TantouFeedback comment = TantouFeedback.builder()
+                .page(parent.getPage())
+                .editor(currentUser)
+                .xCoord(parent.getXCoord())
+                .yCoord(parent.getYCoord())
+                .width(parent.getWidth())
+                .height(parent.getHeight())
+                .content("[Mangaka Comment on Feedback #" + parent.getId() + "] " + content.trim())
+                .isResolved(false)
+                .build();
+        return tantouFeedbackRepository.save(comment);
+    }
+
+    @Override
+    @Transactional
     public TantouFeedback resolveFeedback(Long feedbackId, Long userId) {
         TantouFeedback feedback = tantouFeedbackRepository.findById(feedbackId)
                 .orElseThrow(() -> new RuntimeException("Error: Feedback not found"));

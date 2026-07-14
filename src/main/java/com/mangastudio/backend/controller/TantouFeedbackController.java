@@ -43,6 +43,16 @@ public class TantouFeedbackController {
         return ResponseEntity.ok(tantouFeedbackService.getFeedbacksByPage(pageId, userDetails.getId()));
     }
 
+    @PostMapping("/{feedbackId}/comments")
+    public ResponseEntity<TantouFeedback> addMangakaComment(
+            @PathVariable Long feedbackId,
+            @RequestParam String content,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        TantouFeedback comment = tantouFeedbackService.addMangakaComment(feedbackId, userDetails.getId(), content);
+        return ResponseEntity.status(HttpStatus.CREATED).body(comment);
+    }
+
     @PatchMapping("/{feedbackId}/resolve")
     public ResponseEntity<TantouFeedback> resolveFeedback(
             @PathVariable Long feedbackId,

@@ -4,6 +4,11 @@ import com.mangastudio.backend.entity.Task;
 import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.TaskRepository;
 import com.mangastudio.backend.repository.UserRepository;
+import com.mangastudio.backend.repository.PageRepository;
+import com.mangastudio.backend.repository.PageVersionRepository;
+import com.mangastudio.backend.entity.Page;
+import com.mangastudio.backend.entity.PageVersion;
+import java.time.LocalDateTime;
 import com.mangastudio.backend.service.TaskService;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -18,12 +23,18 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final MangaSeriesRepository mangaSeriesRepository;
+    private final PageRepository pageRepository;
+    private final PageVersionRepository pageVersionRepository;
 
     public TaskServiceImpl(TaskRepository taskRepository, UserRepository userRepository,
-                           MangaSeriesRepository mangaSeriesRepository) {
+                           MangaSeriesRepository mangaSeriesRepository,
+                           PageRepository pageRepository,
+                           PageVersionRepository pageVersionRepository) {
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
         this.mangaSeriesRepository = mangaSeriesRepository;
+        this.pageRepository = pageRepository;
+        this.pageVersionRepository = pageVersionRepository;
     }
 
     @Override
@@ -49,6 +60,11 @@ public class TaskServiceImpl implements TaskService {
 
         if (task.getMangaka() == null || !task.getMangaka().getId().equals(mangakaId)) {
             throw new AccessDeniedException("Only the Mangaka who created this task can assign an assistant.");
+        }
+
+        String currentStatus = normalizeStatus(task.getStatus());
+        if ("REVIEWING".equals(currentStatus) || "APPROVED".equals(currentStatus)) {
+            throw new RuntimeException("Error: Assistant assignment is locked once a task is REVIEWING or APPROVED.");
         }
 
         User assistant = userRepository.findById(assistantId)
@@ -128,11 +144,23 @@ public class TaskServiceImpl implements TaskService {
         }
 
         String currentStatus = normalizeStatus(task.getStatus());
+        if ("APPROVED".equals(currentStatus) && approved) {
+            // Idempotent repair path for legacy APPROVED tasks created before
+            // page promotion/versioning existed. The UI remains read-only, but
+            // an explicit backend repair call can synchronize old staging data.
+            promoteApprovedSubmissionToPage(task);
+            return taskRepository.save(task);
+        }
         if (!"REVIEWING".equals(currentStatus)) {
             throw new RuntimeException("Error: Only REVIEWING tasks can receive a Mangaka decision.");
         }
 
-        task.setStatus(approved ? "APPROVED" : "DOING");
+        if (approved) {
+            promoteApprovedSubmissionToPage(task);
+            task.setStatus("APPROVED");
+        } else {
+            task.setStatus("DOING");
+        }
         return taskRepository.save(task);
     }
 
@@ -173,6 +201,63 @@ public class TaskServiceImpl implements TaskService {
         }
         Long seriesId = task.getHitbox().getPage().getChapter().getMangaSeries().getId();
         return taskRepository.countSeriesTasksUpToId(seriesId, task.getId());
+    }
+
+    /**
+     * A Mangaka approval promotes the Assistant's submitted page to the live
+     * Canvas image and archives it as the next immutable PageVersion. The
+     * original task reference is captured before the page changes so Review
+     * and Assignments never replace the source image with submitted work.
+     */
+    private void promoteApprovedSubmissionToPage(Task task) {
+        if (task.getSubmittedImageUrl() == null || task.getSubmittedImageUrl().isBlank()) {
+            throw new RuntimeException("Error: Cannot approve a task without a submitted image.");
+        }
+        if (task.getHitbox() == null || task.getHitbox().getPage() == null) {
+            throw new RuntimeException("Error: Task is not linked to a manga page.");
+        }
+
+        Page page = task.getHitbox().getPage();
+        String currentImage = page.getImageUrl();
+        if (task.getReferenceImageUrl() == null || task.getReferenceImageUrl().isBlank()) {
+            task.setReferenceImageUrl(currentImage);
+        }
+
+        String submittedImage = task.getSubmittedImageUrl();
+        if (submittedImage.equals(currentImage)) {
+            return; // Idempotent protection: never clone a version for the same image.
+        }
+
+        var latestVersion = pageVersionRepository.findTopByPageIdOrderByVersionNumberDesc(page.getId());
+        int nextVersion;
+        if (latestVersion.isEmpty()) {
+            // Legacy pages may not have an initial version record. Archive the
+            // current live image first so approving Assistant work still creates
+            // a genuine new version rather than calling the replacement version 1.
+            if (currentImage != null && !currentImage.isBlank()) {
+                pageVersionRepository.save(PageVersion.builder()
+                        .page(page)
+                        .imageUrl(currentImage)
+                        .versionNumber(1)
+                        .createdAt(LocalDateTime.now())
+                        .build());
+                nextVersion = 2;
+            } else {
+                nextVersion = 1;
+            }
+        } else {
+            nextVersion = latestVersion.get().getVersionNumber() + 1;
+        }
+
+        page.setImageUrl(submittedImage);
+        Page savedPage = pageRepository.save(page);
+        PageVersion version = PageVersion.builder()
+                .page(savedPage)
+                .imageUrl(submittedImage)
+                .versionNumber(nextVersion)
+                .createdAt(LocalDateTime.now())
+                .build();
+        pageVersionRepository.save(version);
     }
 
     private String normalizeStatus(String status) {
