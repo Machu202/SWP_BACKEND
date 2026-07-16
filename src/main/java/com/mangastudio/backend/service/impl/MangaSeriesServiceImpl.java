@@ -10,6 +10,7 @@ import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.MangaSeriesService;
+import com.mangastudio.backend.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,15 +30,18 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
     private final UserRepository userRepository;
     private final BoardVoteRepository boardVoteRepository;
     private final ChapterRepository chapterRepository;
+    private final NotificationService notificationService;
 
     public MangaSeriesServiceImpl(MangaSeriesRepository mangaSeriesRepository,
                                   UserRepository userRepository,
                                   BoardVoteRepository boardVoteRepository,
-                                  ChapterRepository chapterRepository) {
+                                  ChapterRepository chapterRepository,
+                                  NotificationService notificationService) {
         this.mangaSeriesRepository = mangaSeriesRepository;
         this.userRepository = userRepository;
         this.boardVoteRepository = boardVoteRepository;
         this.chapterRepository = chapterRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -246,8 +250,20 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
             throw new RuntimeException("Error: The assigned user must have the Tantou Editor role.");
         }
 
+        Long previousTantouId = series.getTantou() != null ? series.getTantou().getId() : null;
         series.setTantou(tantou);
-        return mapToResponse(mangaSeriesRepository.save(series));
+        MangaSeries savedSeries = mangaSeriesRepository.save(series);
+
+        if (ownerMangaka && !tantou.getId().equals(previousTantouId)) {
+            String seriesTitle = savedSeries.getTitle() == null || savedSeries.getTitle().isBlank()
+                    ? "Manga Series"
+                    : savedSeries.getTitle();
+            notificationService.createNotification(
+                    tantou.getId(),
+                    "\"" + seriesTitle + "\" Mangaka has assigned you to review!",
+                    "/series");
+        }
+        return mapToResponse(savedSeries);
     }
 
     @Override

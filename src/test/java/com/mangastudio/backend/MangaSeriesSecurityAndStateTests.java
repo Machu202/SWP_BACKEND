@@ -10,6 +10,7 @@ import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.impl.MangaSeriesServiceImpl;
+import com.mangastudio.backend.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -26,6 +27,7 @@ class MangaSeriesSecurityAndStateTests {
     private UserRepository userRepository;
     private BoardVoteRepository boardVoteRepository;
     private ChapterRepository chapterRepository;
+    private NotificationService notificationService;
     private MangaSeriesServiceImpl service;
 
     @BeforeEach
@@ -34,7 +36,8 @@ class MangaSeriesSecurityAndStateTests {
         userRepository = mock(UserRepository.class);
         boardVoteRepository = mock(BoardVoteRepository.class);
         chapterRepository = mock(ChapterRepository.class);
-        service = new MangaSeriesServiceImpl(mangaSeriesRepository, userRepository, boardVoteRepository, chapterRepository);
+        notificationService = mock(NotificationService.class);
+        service = new MangaSeriesServiceImpl(mangaSeriesRepository, userRepository, boardVoteRepository, chapterRepository, notificationService);
     }
 
     @Test
@@ -91,6 +94,10 @@ class MangaSeriesSecurityAndStateTests {
         assertEquals(4L, response.getTantouId());
         assertEquals(4L, series.getTantou().getId());
         verify(mangaSeriesRepository).save(series);
+        verify(notificationService).createNotification(
+                4L,
+                "\"Series 20\" Mangaka has assigned you to review!",
+                "/series");
     }
 
     @Test

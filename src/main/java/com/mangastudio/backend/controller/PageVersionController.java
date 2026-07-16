@@ -15,7 +15,10 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Objects;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/v1/page-versions")
@@ -80,6 +83,7 @@ public class PageVersionController {
     }
 
     @PatchMapping("/{versionId}/restore")
+    @Transactional
     public ResponseEntity<Page> restoreVersion(
             @PathVariable Long versionId,
             Authentication authentication) {
@@ -97,11 +101,73 @@ public class PageVersionController {
             throw new AccessDeniedException("You do not have permission to restore this page version");
         }
 
+        String currentImageUrl = page.getImageUrl();
+        List<Hitbox> activeHitboxes = new ArrayList<>(
+                hitboxRepository.findByPageIdAndPageVersionIsNull(page.getId()));
+
+        // Preserve hitboxes belonging to the image that is currently live. In
+        // normal data that image already has a PageVersion. Restored clones
+        // that are already represented by that version are removed instead of
+        // being duplicated inside the historical snapshot.
+        boolean switchingImages = !Objects.equals(currentImageUrl, version.getImageUrl());
+        PageVersion currentVersion = currentImageUrl == null ? null : pageVersionRepository
+                .findTopByPageIdAndImageUrlOrderByVersionNumberDesc(page.getId(), currentImageUrl)
+                .orElse(null);
+        if (switchingImages && currentVersion != null && !activeHitboxes.isEmpty()) {
+            List<Hitbox> alreadyArchived = hitboxRepository.findByPageVersionId(currentVersion.getId());
+            List<Hitbox> toArchive = new ArrayList<>();
+            List<Hitbox> duplicateRestoredClones = new ArrayList<>();
+            for (Hitbox active : activeHitboxes) {
+                boolean represented = active.getTask() == null && alreadyArchived.stream()
+                        .anyMatch(saved -> sameGeometry(active, saved));
+                if (represented) {
+                    duplicateRestoredClones.add(active);
+                } else {
+                    active.setPageVersion(currentVersion);
+                    toArchive.add(active);
+                }
+            }
+            if (!toArchive.isEmpty()) hitboxRepository.saveAll(toArchive);
+            if (!duplicateRestoredClones.isEmpty()) hitboxRepository.deleteAll(duplicateRestoredClones);
+        }
+
         page.setImageUrl(version.getImageUrl());
         Page restoredPage = pageRepository.saveAndFlush(page);
-        // Restoring means selecting an existing historical snapshot as the
-        // current page image. Do not clone it into a new version; otherwise
-        // restoring V1 incorrectly creates V2/V3 and the history becomes noisy.
+
+        // The archived hitboxes remain attached to the historical version.
+        // Clone only their geometry into the live page so Restore immediately
+        // recreates the correct editable overlay without removing history.
+        List<Hitbox> archivedHitboxes = hitboxRepository.findByPageVersionId(versionId);
+        List<Hitbox> currentActive = hitboxRepository.findByPageIdAndPageVersionIsNull(page.getId());
+        List<Hitbox> restoredActive = archivedHitboxes.stream()
+                .filter(saved -> currentActive.stream().noneMatch(active -> sameGeometry(active, saved)))
+                .map(saved -> Hitbox.builder()
+                        .page(restoredPage)
+                        .pageVersion(null)
+                        .createdBy(saved.getCreatedBy())
+                        .xCoord(saved.getXCoord())
+                        .yCoord(saved.getYCoord())
+                        .width(saved.getWidth())
+                        .height(saved.getHeight())
+                        .build())
+                .collect(Collectors.toList());
+        if (!restoredActive.isEmpty()) hitboxRepository.saveAll(restoredActive);
+
+        // Restoring selects an existing snapshot; it never creates another
+        // PageVersion record.
         return ResponseEntity.ok(restoredPage);
     }
+
+    private boolean sameGeometry(Hitbox left, Hitbox right) {
+        return sameNumber(left.getXCoord(), right.getXCoord())
+                && sameNumber(left.getYCoord(), right.getYCoord())
+                && sameNumber(left.getWidth(), right.getWidth())
+                && sameNumber(left.getHeight(), right.getHeight());
+    }
+
+    private boolean sameNumber(Double left, Double right) {
+        if (left == null || right == null) return left == right;
+        return Math.abs(left - right) < 0.0001d;
+    }
 }
+

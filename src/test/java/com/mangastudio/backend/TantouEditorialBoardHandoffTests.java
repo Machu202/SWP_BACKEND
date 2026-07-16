@@ -10,6 +10,7 @@ import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.impl.MangaSeriesServiceImpl;
+import com.mangastudio.backend.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -32,6 +33,7 @@ class TantouEditorialBoardHandoffTests {
     private UserRepository userRepository;
     private BoardVoteRepository voteRepository;
     private ChapterRepository chapterRepository;
+    private NotificationService notificationService;
     private MangaSeriesServiceImpl service;
 
     @BeforeEach
@@ -40,7 +42,8 @@ class TantouEditorialBoardHandoffTests {
         userRepository = mock(UserRepository.class);
         voteRepository = mock(BoardVoteRepository.class);
         chapterRepository = mock(ChapterRepository.class);
-        service = new MangaSeriesServiceImpl(seriesRepository, userRepository, voteRepository, chapterRepository);
+        notificationService = mock(NotificationService.class);
+        service = new MangaSeriesServiceImpl(seriesRepository, userRepository, voteRepository, chapterRepository, notificationService);
     }
 
     @Test

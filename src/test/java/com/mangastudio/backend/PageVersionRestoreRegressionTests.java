@@ -11,8 +11,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
 class PageVersionRestoreRegressionTests {
@@ -29,7 +31,13 @@ class PageVersionRestoreRegressionTests {
         PageVersionRepository versionRepository = mock(PageVersionRepository.class);
         PageRepository pageRepository = mock(PageRepository.class);
         HitboxRepository hitboxRepository = mock(HitboxRepository.class);
+        Hitbox archived = Hitbox.builder().id(6L).page(page).pageVersion(version).createdBy(owner)
+                .xCoord(10d).yCoord(20d).width(30d).height(40d).build();
         when(versionRepository.findById(5L)).thenReturn(Optional.of(version));
+        when(versionRepository.findTopByPageIdAndImageUrlOrderByVersionNumberDesc(4L, "current.png"))
+                .thenReturn(Optional.empty());
+        when(hitboxRepository.findByPageIdAndPageVersionIsNull(4L)).thenReturn(List.of());
+        when(hitboxRepository.findByPageVersionId(5L)).thenReturn(List.of(archived));
         when(pageRepository.saveAndFlush(page)).thenReturn(page);
         var principal = UserDetailsImpl.build(owner);
         var authentication = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
@@ -37,5 +45,14 @@ class PageVersionRestoreRegressionTests {
         var controller = new PageVersionController(versionRepository, pageRepository, hitboxRepository);
         assertEquals("version-1.png", controller.restoreVersion(5L, authentication).getBody().getImageUrl());
         verify(versionRepository, never()).save(any(PageVersion.class));
+        verify(hitboxRepository).saveAll(argThat(items -> {
+            Hitbox restored = items.iterator().next();
+            return restored.getPage() == page
+                    && restored.getPageVersion() == null
+                    && restored.getXCoord().equals(10d)
+                    && restored.getYCoord().equals(20d)
+                    && restored.getWidth().equals(30d)
+                    && restored.getHeight().equals(40d);
+        }));
     }
 }
