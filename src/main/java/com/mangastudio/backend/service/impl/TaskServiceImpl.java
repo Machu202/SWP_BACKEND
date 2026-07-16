@@ -6,16 +6,19 @@ import com.mangastudio.backend.repository.TaskRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.repository.PageRepository;
 import com.mangastudio.backend.repository.PageVersionRepository;
+import com.mangastudio.backend.repository.HitboxRepository;
 import com.mangastudio.backend.entity.Page;
 import com.mangastudio.backend.entity.PageVersion;
 import java.time.LocalDateTime;
 import com.mangastudio.backend.service.TaskService;
+import com.mangastudio.backend.service.NotificationService;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class TaskServiceImpl implements TaskService {
@@ -25,16 +28,22 @@ public class TaskServiceImpl implements TaskService {
     private final MangaSeriesRepository mangaSeriesRepository;
     private final PageRepository pageRepository;
     private final PageVersionRepository pageVersionRepository;
+    private final HitboxRepository hitboxRepository;
+    private final NotificationService notificationService;
 
     public TaskServiceImpl(TaskRepository taskRepository, UserRepository userRepository,
                            MangaSeriesRepository mangaSeriesRepository,
                            PageRepository pageRepository,
-                           PageVersionRepository pageVersionRepository) {
+                           PageVersionRepository pageVersionRepository,
+                           HitboxRepository hitboxRepository,
+                           NotificationService notificationService) {
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
         this.mangaSeriesRepository = mangaSeriesRepository;
         this.pageRepository = pageRepository;
         this.pageVersionRepository = pageVersionRepository;
+        this.hitboxRepository = hitboxRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -74,8 +83,18 @@ public class TaskServiceImpl implements TaskService {
             throw new RuntimeException("Error: Selected user is not an Assistant.");
         }
 
+        Long previousAssistantId = task.getAssistant() != null ? task.getAssistant().getId() : null;
         task.setAssistant(assistant);
-        return taskRepository.save(task);
+        Task savedTask = taskRepository.save(task);
+
+        if (!assistant.getId().equals(previousAssistantId)) {
+            String seriesTitle = taskSeriesTitle(savedTask);
+            notificationService.createNotification(
+                    assistant.getId(),
+                    "You got a new task from \"" + seriesTitle + "\" mangaka!",
+                    "/tasks?tab=assignments");
+        }
+        return savedTask;
     }
 
     /**
@@ -107,6 +126,10 @@ public class TaskServiceImpl implements TaskService {
         if (!valid) {
             throw new RuntimeException("Error: Invalid Kanban transition from " + currentStatus + " to " + newStatus
                     + ". Allowed flow is TODO -> DOING -> REVIEWING; approval happens in Mangaka Review.");
+        }
+        if ("REVIEWING".equals(newStatus)
+                && (task.getSubmittedImageUrl() == null || task.getSubmittedImageUrl().isBlank())) {
+            throw new RuntimeException("Error: A submitted image is required before this task can move to REVIEWING.");
         }
 
         task.setStatus(newStatus);
@@ -180,9 +203,18 @@ public class TaskServiceImpl implements TaskService {
             throw new RuntimeException("Error: Approved tasks cannot be resubmitted.");
         }
 
-        task.setSubmittedImageUrl(imageUrl);
+        task.setSubmittedImageUrl(imageUrl.trim());
         task.setStatus("REVIEWING");
-        return taskRepository.save(task);
+        Task savedTask = taskRepository.save(task);
+
+        if (savedTask.getMangaka() != null) {
+            String assistantName = displayName(savedTask.getAssistant());
+            notificationService.createNotification(
+                    savedTask.getMangaka().getId(),
+                    "Assistant \"" + assistantName + "\" has sent you his work. Go check it out!",
+                    "/assistant-review");
+        }
+        return savedTask;
     }
 
     @Override
@@ -223,41 +255,68 @@ public class TaskServiceImpl implements TaskService {
             task.setReferenceImageUrl(currentImage);
         }
 
-        String submittedImage = task.getSubmittedImageUrl();
+        String submittedImage = task.getSubmittedImageUrl().trim();
         if (submittedImage.equals(currentImage)) {
             return; // Idempotent protection: never clone a version for the same image.
         }
 
-        var latestVersion = pageVersionRepository.findTopByPageIdOrderByVersionNumberDesc(page.getId());
-        int nextVersion;
-        if (latestVersion.isEmpty()) {
-            // Legacy pages may not have an initial version record. Archive the
-            // current live image first so approving Assistant work still creates
-            // a genuine new version rather than calling the replacement version 1.
-            if (currentImage != null && !currentImage.isBlank()) {
-                pageVersionRepository.save(PageVersion.builder()
-                        .page(page)
-                        .imageUrl(currentImage)
-                        .versionNumber(1)
-                        .createdAt(LocalDateTime.now())
-                        .build());
-                nextVersion = 2;
-            } else {
-                nextVersion = 1;
-            }
-        } else {
-            nextVersion = latestVersion.get().getVersionNumber() + 1;
-        }
+        Optional<PageVersion> latestVersion = pageVersionRepository.findTopByPageIdOrderByVersionNumberDesc(page.getId());
+        int nextVersionNumber = latestVersion.map(version -> version.getVersionNumber() + 1).orElse(1);
+
+        // Ensure the current live image has an immutable version record. Uploaded
+        // pages normally already have Version 1, while legacy rows may not.
+        PageVersion previousVersion = pageVersionRepository
+                .findTopByPageIdAndImageUrlOrderByVersionNumberDesc(page.getId(), currentImage)
+                .orElseGet(() -> {
+                    PageVersion snapshot = PageVersion.builder()
+                            .page(page)
+                            .imageUrl(currentImage)
+                            .versionNumber(nextVersionNumber)
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    return pageVersionRepository.save(snapshot);
+                });
+
+        int promotedVersionNumber = Math.max(
+                previousVersion.getVersionNumber() + 1,
+                pageVersionRepository.findTopByPageIdOrderByVersionNumberDesc(page.getId())
+                        .map(version -> version.getVersionNumber() + 1)
+                        .orElse(1));
+
+        // Archive every hitbox that belongs to the old live image. Their tasks and
+        // coordinates remain available from the historical PageVersion, while the
+        // newly approved page starts with no active Mangaka hitboxes.
+        List<com.mangastudio.backend.entity.Hitbox> liveHitboxes =
+                hitboxRepository.findByPageIdAndPageVersionIsNull(page.getId());
+        liveHitboxes.forEach(hitbox -> hitbox.setPageVersion(previousVersion));
+        if (!liveHitboxes.isEmpty()) hitboxRepository.saveAll(liveHitboxes);
 
         page.setImageUrl(submittedImage);
         Page savedPage = pageRepository.save(page);
-        PageVersion version = PageVersion.builder()
+        pageVersionRepository.save(PageVersion.builder()
                 .page(savedPage)
                 .imageUrl(submittedImage)
-                .versionNumber(nextVersion)
+                .versionNumber(promotedVersionNumber)
                 .createdAt(LocalDateTime.now())
-                .build();
-        pageVersionRepository.save(version);
+                .build());
+    }
+
+    private String displayName(User user) {
+        if (user == null) return "Assistant";
+        if (user.getFullName() != null && !user.getFullName().isBlank()) return user.getFullName();
+        if (user.getUsername() != null && !user.getUsername().isBlank()) return user.getUsername();
+        if (user.getEmail() != null && !user.getEmail().isBlank()) return user.getEmail();
+        return "Assistant";
+    }
+
+    private String taskSeriesTitle(Task task) {
+        if (task != null && task.getHitbox() != null && task.getHitbox().getPage() != null
+                && task.getHitbox().getPage().getChapter() != null
+                && task.getHitbox().getPage().getChapter().getMangaSeries() != null) {
+            String title = task.getHitbox().getPage().getChapter().getMangaSeries().getTitle();
+            if (title != null && !title.isBlank()) return title;
+        }
+        return "your assigned series";
     }
 
     private String normalizeStatus(String status) {

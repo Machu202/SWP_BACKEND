@@ -65,7 +65,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
         pageRepository.findById(pageId)
                 .orElseThrow(() -> new RuntimeException("Error: Page not found with ID: " + pageId));
 
-        return hitboxRepository.findByPageId(pageId);
+        return hitboxRepository.findByPageIdAndPageVersionIsNull(pageId);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
         Page page = pageRepository.findById(pageId)
                 .orElseThrow(() -> new RuntimeException("Error: Page not found with ID: " + pageId));
 
-        List<Hitbox> hitboxes = hitboxRepository.findByPageId(pageId);
+        List<Hitbox> hitboxes = hitboxRepository.findByPageIdAndPageVersionIsNull(pageId);
 
         return CanvasInitResponse.builder()
                 .pageId(page.getId())

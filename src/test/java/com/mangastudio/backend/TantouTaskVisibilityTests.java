@@ -6,6 +6,8 @@ import com.mangastudio.backend.repository.TaskRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.repository.PageRepository;
 import com.mangastudio.backend.repository.PageVersionRepository;
+import com.mangastudio.backend.repository.HitboxRepository;
+import com.mangastudio.backend.service.NotificationService;
 import com.mangastudio.backend.service.impl.TaskServiceImpl;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +23,7 @@ class TantouTaskVisibilityTests {
         TaskRepository taskRepository = mock(TaskRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
         MangaSeriesRepository mangaSeriesRepository = mock(MangaSeriesRepository.class);
-        TaskServiceImpl service = new TaskServiceImpl(taskRepository, userRepository, mangaSeriesRepository, mock(PageRepository.class), mock(PageVersionRepository.class));
+        TaskServiceImpl service = new TaskServiceImpl(taskRepository, userRepository, mangaSeriesRepository, mock(PageRepository.class), mock(PageVersionRepository.class), mock(HitboxRepository.class), mock(NotificationService.class));
 
         Task assignedTask = Task.builder().id(11L).status("APPROVED").build();
         when(taskRepository.findByAssignedTantouId(4L)).thenReturn(List.of(assignedTask));

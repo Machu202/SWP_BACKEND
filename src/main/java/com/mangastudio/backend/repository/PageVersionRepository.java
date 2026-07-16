@@ -12,4 +12,5 @@ public interface PageVersionRepository extends JpaRepository<PageVersion, Long> 
     List<PageVersion> findByPageIdOrderByCreatedAtDesc(Long pageId);
     int countByPageId(Long pageId);
     Optional<PageVersion> findTopByPageIdOrderByVersionNumberDesc(Long pageId);
+    Optional<PageVersion> findTopByPageIdAndImageUrlOrderByVersionNumberDesc(Long pageId, String imageUrl);
 }

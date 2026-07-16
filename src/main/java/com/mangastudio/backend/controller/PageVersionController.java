@@ -4,6 +4,8 @@ import com.mangastudio.backend.entity.Page;
 import com.mangastudio.backend.entity.PageVersion;
 import com.mangastudio.backend.repository.PageRepository;
 import com.mangastudio.backend.repository.PageVersionRepository;
+import com.mangastudio.backend.repository.HitboxRepository;
+import com.mangastudio.backend.entity.Hitbox;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -21,10 +23,14 @@ public class PageVersionController {
 
     private final PageVersionRepository pageVersionRepository;
     private final PageRepository pageRepository;
+    private final HitboxRepository hitboxRepository;
 
-    public PageVersionController(PageVersionRepository pageVersionRepository, PageRepository pageRepository) {
+    public PageVersionController(PageVersionRepository pageVersionRepository,
+                                 PageRepository pageRepository,
+                                 HitboxRepository hitboxRepository) {
         this.pageVersionRepository = pageVersionRepository;
         this.pageRepository = pageRepository;
+        this.hitboxRepository = hitboxRepository;
     }
 
     @GetMapping("/pages/{pageId}")
@@ -44,6 +50,29 @@ public class PageVersionController {
                     dto.put("version_number", version.getVersionNumber());
                     dto.put("createdAt", version.getCreatedAt());
                     dto.put("created_at", version.getCreatedAt());
+                    dto.put("hitboxCount", hitboxRepository.findByPageVersionId(version.getId()).size());
+                    dto.put("hitbox_count", hitboxRepository.findByPageVersionId(version.getId()).size());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+
+    @GetMapping("/{versionId}/hitboxes")
+    public ResponseEntity<List<Map<String, Object>>> getVersionHitboxes(@PathVariable Long versionId) {
+        pageVersionRepository.findById(versionId)
+                .orElseThrow(() -> new RuntimeException("Error: Page version not found"));
+        List<Map<String, Object>> response = hitboxRepository.findByPageVersionId(versionId).stream()
+                .map(hitbox -> {
+                    Map<String, Object> dto = new LinkedHashMap<>();
+                    dto.put("id", hitbox.getId());
+                    dto.put("xCoord", hitbox.getXCoord());
+                    dto.put("x_coord", hitbox.getXCoord());
+                    dto.put("yCoord", hitbox.getYCoord());
+                    dto.put("y_coord", hitbox.getYCoord());
+                    dto.put("width", hitbox.getWidth());
+                    dto.put("height", hitbox.getHeight());
                     return dto;
                 })
                 .collect(Collectors.toList());
