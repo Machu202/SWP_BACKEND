@@ -3,6 +3,7 @@ package com.mangastudio.backend;
 import com.mangastudio.backend.controller.PageVersionController;
 import com.mangastudio.backend.entity.*;
 import com.mangastudio.backend.repository.PageRepository;
+import com.mangastudio.backend.repository.HitboxRepository;
 import com.mangastudio.backend.repository.PageVersionRepository;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import org.junit.jupiter.api.Test;
@@ -27,12 +28,13 @@ class PageVersionRestoreRegressionTests {
 
         PageVersionRepository versionRepository = mock(PageVersionRepository.class);
         PageRepository pageRepository = mock(PageRepository.class);
+        HitboxRepository hitboxRepository = mock(HitboxRepository.class);
         when(versionRepository.findById(5L)).thenReturn(Optional.of(version));
         when(pageRepository.saveAndFlush(page)).thenReturn(page);
         var principal = UserDetailsImpl.build(owner);
         var authentication = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
 
-        var controller = new PageVersionController(versionRepository, pageRepository);
+        var controller = new PageVersionController(versionRepository, pageRepository, hitboxRepository);
         assertEquals("version-1.png", controller.restoreVersion(5L, authentication).getBody().getImageUrl());
         verify(versionRepository, never()).save(any(PageVersion.class));
     }
