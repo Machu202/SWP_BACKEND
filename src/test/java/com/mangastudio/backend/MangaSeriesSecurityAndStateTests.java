@@ -101,6 +101,26 @@ class MangaSeriesSecurityAndStateTests {
     }
 
     @Test
+    void tantouCannotBeAssignedToASecondSeries() {
+        User owner = user(2L, "Mangaka");
+        User tantou = user(4L, "Tantou Editor");
+        MangaSeries series = series(22L, owner, "DRAFT");
+        when(mangaSeriesRepository.findById(22L)).thenReturn(Optional.of(series));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(owner));
+        when(userRepository.findById(4L)).thenReturn(Optional.of(tantou));
+        when(mangaSeriesRepository.existsByTantou_IdAndIdNot(4L, 22L)).thenReturn(true);
+
+        RuntimeException error = assertThrows(RuntimeException.class,
+                () -> service.assignTantou(22L, 2L, 4L));
+
+        assertEquals(
+                "Tantou Editor is already assigned to another manga series. Each Tantou Editor can only be assigned to one manga series.",
+                error.getMessage());
+        verify(mangaSeriesRepository, never()).save(any());
+        verify(notificationService, never()).createNotification(anyLong(), anyString(), anyString());
+    }
+
+    @Test
     void nonOwnerCannotAssignTantouAndAssignedUserMustBeTantou() {
         User owner = user(2L, "Mangaka");
         User assistant = user(3L, "Assistant");
@@ -169,6 +189,21 @@ class MangaSeriesSecurityAndStateTests {
         assertEquals("APPROVED", result.getStatus());
         assertEquals(4L, result.getTantou().getId());
         verify(mangaSeriesRepository).save(series);
+    }
+
+    @Test
+    void adminCannotAssignAnOccupiedTantouDuringFinalApproval() {
+        MangaSeries series = series(15L, user(2L, "Mangaka"), "REVIEWING");
+        User tantou = user(4L, "Tantou Editor");
+        when(mangaSeriesRepository.findById(15L)).thenReturn(Optional.of(series));
+        when(boardVoteRepository.countByMangaSeriesIdAndIsApproved(15L, true)).thenReturn(1L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(tantou));
+        when(mangaSeriesRepository.existsByTantou_IdAndIdNot(4L, 15L)).thenReturn(true);
+
+        assertThrows(RuntimeException.class,
+                () -> service.handleAdminDecision(15L, true, 4L));
+
+        verify(mangaSeriesRepository, never()).save(any());
     }
 
 

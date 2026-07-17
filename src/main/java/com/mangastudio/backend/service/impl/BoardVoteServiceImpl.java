@@ -1,24 +1,43 @@
 package com.mangastudio.backend.service.impl;
 
+import com.mangastudio.backend.dto.response.BoardVoteHistoryResponse;
 import com.mangastudio.backend.dto.response.BoardVoteSummaryResponse;
 import com.mangastudio.backend.entity.BoardVote;
+import com.mangastudio.backend.entity.BoardVoteHistory;
 import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.entity.User;
+import com.mangastudio.backend.repository.BoardVoteHistoryRepository;
 import com.mangastudio.backend.repository.BoardVoteRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.BoardVoteService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 @Service
-@RequiredArgsConstructor
 public class BoardVoteServiceImpl implements BoardVoteService {
 
     private final BoardVoteRepository boardVoteRepository;
+    private final BoardVoteHistoryRepository boardVoteHistoryRepository;
     private final MangaSeriesRepository mangaSeriesRepository;
     private final UserRepository userRepository;
+
+    public BoardVoteServiceImpl(BoardVoteRepository boardVoteRepository,
+                                BoardVoteHistoryRepository boardVoteHistoryRepository,
+                                MangaSeriesRepository mangaSeriesRepository,
+                                UserRepository userRepository) {
+        this.boardVoteRepository = boardVoteRepository;
+        this.boardVoteHistoryRepository = boardVoteHistoryRepository;
+        this.mangaSeriesRepository = mangaSeriesRepository;
+        this.userRepository = userRepository;
+    }
 
     @Override
     @Transactional
@@ -43,7 +62,14 @@ public class BoardVoteServiceImpl implements BoardVoteService {
                         .build());
 
         vote.setIsApproved(isApproved);
-        return boardVoteRepository.save(vote);
+        BoardVote savedVote = boardVoteRepository.save(vote);
+        boardVoteHistoryRepository.save(new BoardVoteHistory(
+                null,
+                series,
+                member,
+                isApproved,
+                LocalDateTime.now()));
+        return savedVote;
     }
 
     @Override
@@ -63,5 +89,51 @@ public class BoardVoteServiceImpl implements BoardVoteService {
                 .approvedVotes(approved)
                 .rejectedVotes(rejected)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BoardVoteHistoryResponse> getMyVoteHistory(Long memberId) {
+        User member = userRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("Error: Board Member not found"));
+        String roleName = member.getRole() != null ? member.getRole().getRoleName() : "";
+        if (!"Editorial Board".equalsIgnoreCase(roleName) && !"Admin".equalsIgnoreCase(roleName)) {
+            throw new RuntimeException("Error: Only Editorial Board members can view vote history.");
+        }
+
+        List<BoardVoteHistoryResponse> result = new ArrayList<>();
+        Set<Long> seriesWithAuditHistory = new HashSet<>();
+        for (BoardVoteHistory history : boardVoteHistoryRepository.findHistoryForMember(memberId)) {
+            MangaSeries series = history.getMangaSeries();
+            if (series != null && series.getId() != null) seriesWithAuditHistory.add(series.getId());
+            result.add(toHistoryResponse(history.getId(), series, history.getIsApproved(), history.getVotedAt()));
+        }
+
+        // Votes created before the audit table was introduced remain visible.
+        for (BoardVote currentVote : boardVoteRepository.findCurrentVotesForMember(memberId)) {
+            MangaSeries series = currentVote.getMangaSeries();
+            if (series != null && seriesWithAuditHistory.contains(series.getId())) continue;
+            result.add(toHistoryResponse(currentVote.getId(), series, currentVote.getIsApproved(), currentVote.getCreatedAt()));
+        }
+
+        result.sort(Comparator.comparing(
+                BoardVoteHistoryResponse::getVotedAt,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+        return result;
+    }
+
+    private BoardVoteHistoryResponse toHistoryResponse(Long voteId, MangaSeries series,
+                                                       Boolean approved, LocalDateTime votedAt) {
+        return new BoardVoteHistoryResponse(
+                voteId,
+                series != null ? series.getId() : null,
+                series != null ? series.getTitle() : "Manga Series",
+                series != null ? series.getCoverImageUrl() : null,
+                series != null ? series.getGenre() : null,
+                series != null ? series.getSummary() : null,
+                series != null ? series.getDescription() : null,
+                series != null ? series.getStatus() : null,
+                approved,
+                votedAt);
     }
 }

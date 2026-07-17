@@ -15,6 +15,8 @@ public interface MangaSeriesRepository extends JpaRepository<MangaSeries, Long> 
     @Query("SELECT ms FROM MangaSeries ms LEFT JOIN FETCH ms.mangaka LEFT JOIN FETCH ms.tantou WHERE ms.tantou.id = :tantouId ORDER BY ms.createdAt DESC, ms.id DESC")
     List<MangaSeries> findAssignedToTantou(@Param("tantouId") Long tantouId);
 
+    boolean existsByTantou_IdAndIdNot(Long tantouId, Long seriesId);
+
     Page<MangaSeries> findByStatus(String status, Pageable pageable);
 
     // User-facing series numbers are dense among currently existing rows. The

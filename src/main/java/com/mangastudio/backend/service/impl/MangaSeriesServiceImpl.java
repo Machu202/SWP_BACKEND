@@ -249,6 +249,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         if (!hasRole(tantou, "TANTOU EDITOR")) {
             throw new RuntimeException("Error: The assigned user must have the Tantou Editor role.");
         }
+        ensureTantouAvailableForSeries(tantou, seriesId);
 
         Long previousTantouId = series.getTantou() != null ? series.getTantou().getId() : null;
         series.setTantou(tantou);
@@ -341,6 +342,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                 if (!hasRole(tantouEditor, "TANTOU EDITOR")) {
                     throw new RuntimeException("Error: The assigned user must have the Tantou Editor role.");
                 }
+                ensureTantouAvailableForSeries(tantouEditor, seriesId);
                 series.setTantou(tantouEditor);
             }
             series.setStatus("APPROVED");
@@ -357,6 +359,16 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
      */
     private void resetBoardVotesForNewReviewCycle(Long seriesId) {
         boardVoteRepository.deleteByMangaSeriesId(seriesId);
+    }
+
+    private void ensureTantouAvailableForSeries(User tantou, Long seriesId) {
+        if (tantou != null
+                && tantou.getId() != null
+                && mangaSeriesRepository.existsByTantou_IdAndIdNot(tantou.getId(), seriesId)) {
+            throw new RuntimeException(
+                    "Tantou Editor is already assigned to another manga series. "
+                            + "Each Tantou Editor can only be assigned to one manga series.");
+        }
     }
 
     private void validateAllChaptersApprovedForBoard(MangaSeries series) {
