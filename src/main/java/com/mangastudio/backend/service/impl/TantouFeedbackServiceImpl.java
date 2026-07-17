@@ -6,6 +6,7 @@ import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.PageRepository;
 import com.mangastudio.backend.repository.TantouFeedbackRepository;
 import com.mangastudio.backend.repository.UserRepository;
+import com.mangastudio.backend.service.NotificationService;
 import com.mangastudio.backend.service.TantouFeedbackService;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -19,14 +20,17 @@ public class TantouFeedbackServiceImpl implements TantouFeedbackService {
     private final TantouFeedbackRepository tantouFeedbackRepository;
     private final PageRepository pageRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public TantouFeedbackServiceImpl(
             TantouFeedbackRepository tantouFeedbackRepository,
             PageRepository pageRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            NotificationService notificationService) {
         this.tantouFeedbackRepository = tantouFeedbackRepository;
         this.pageRepository = pageRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -57,7 +61,15 @@ public class TantouFeedbackServiceImpl implements TantouFeedbackService {
                 .isResolved(false)
                 .build();
 
-        return tantouFeedbackRepository.save(feedback);
+        TantouFeedback savedFeedback = tantouFeedbackRepository.save(feedback);
+        User mangaka = page.getChapter().getMangaSeries().getMangaka();
+        if (mangaka != null && mangaka.getId() != null) {
+            notificationService.createNotification(
+                    mangaka.getId(),
+                    "Tantou \"" + displayName(editor) + "\" has sent you a feedback. Go check it out!",
+                    mangakaFeedbackUrl(page, savedFeedback.getId()));
+        }
+        return savedFeedback;
     }
 
     @Override
@@ -121,12 +133,50 @@ public class TantouFeedbackServiceImpl implements TantouFeedbackService {
                 .orElseThrow(() -> new RuntimeException("Error: User not found"));
         User mangaka = feedback.getPage().getChapter().getMangaSeries().getMangaka();
         String roleName = currentUser.getRole() != null ? currentUser.getRole().getRoleName() : "";
-        if (!"Admin".equalsIgnoreCase(roleName)
-                && (mangaka == null || !mangaka.getId().equals(userId))) {
+        boolean owningMangaka = mangaka != null && mangaka.getId().equals(userId);
+        if (!"Admin".equalsIgnoreCase(roleName) && !owningMangaka) {
             throw new AccessDeniedException("Only the owning Mangaka can resolve this Tantou feedback.");
         }
 
+        // Repeated clicks or retries must not create duplicate notifications.
+        if (Boolean.TRUE.equals(feedback.getIsResolved())) return feedback;
+
         feedback.setIsResolved(true);
-        return tantouFeedbackRepository.save(feedback);
+        TantouFeedback savedFeedback = tantouFeedbackRepository.save(feedback);
+        User feedbackEditor = feedback.getEditor();
+        boolean authoredByTantou = feedbackEditor != null
+                && feedbackEditor.getRole() != null
+                && "Tantou Editor".equalsIgnoreCase(feedbackEditor.getRole().getRoleName());
+        if (owningMangaka && authoredByTantou && feedbackEditor.getId() != null) {
+            Page page = feedback.getPage();
+            String seriesTitle = page.getChapter().getMangaSeries().getTitle();
+            if (seriesTitle == null || seriesTitle.isBlank()) seriesTitle = "Manga Series";
+            notificationService.createNotification(
+                    feedbackEditor.getId(),
+                    "\"" + seriesTitle.trim() + "\" Mangaka has reviewed your feedback!",
+                    tantouFeedbackCanvasUrl(page, savedFeedback.getId()));
+        }
+        return savedFeedback;
+    }
+
+    private String displayName(User user) {
+        if (user.getFullName() != null && !user.getFullName().isBlank()) return user.getFullName().trim();
+        if (user.getUsername() != null && !user.getUsername().isBlank()) return user.getUsername().trim();
+        return "Tantou Editor";
+    }
+
+    private String mangakaFeedbackUrl(Page page, Long feedbackId) {
+        return "/assistant-review?tab=tantou"
+                + "&seriesId=" + page.getChapter().getMangaSeries().getId()
+                + "&chapterId=" + page.getChapter().getId()
+                + "&pageId=" + page.getId()
+                + (feedbackId == null ? "" : "&feedbackId=" + feedbackId);
+    }
+
+    private String tantouFeedbackCanvasUrl(Page page, Long feedbackId) {
+        return "/canvas-workspace?seriesId=" + page.getChapter().getMangaSeries().getId()
+                + "&chapterId=" + page.getChapter().getId()
+                + "&pageId=" + page.getId()
+                + (feedbackId == null ? "" : "&feedbackId=" + feedbackId);
     }
 }
