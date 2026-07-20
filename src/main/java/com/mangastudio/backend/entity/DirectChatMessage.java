@@ -15,10 +15,10 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(
-        name = "Direct_Chat_Message",
+        name = "mat_chat_message",
         indexes = {
-                @Index(name = "idx_direct_chat_sender_recipient_created", columnList = "sender_id, recipient_id, created_at"),
-                @Index(name = "idx_direct_chat_recipient_sender_created", columnList = "recipient_id, sender_id, created_at")
+                @Index(name = "idx_mat_chat_sender_receiver_created", columnList = "sender_id, receiver_id, created_at"),
+                @Index(name = "idx_mat_chat_receiver_sender_created", columnList = "receiver_id, sender_id, created_at")
         })
 public class DirectChatMessage {
 
@@ -31,8 +31,8 @@ public class DirectChatMessage {
     private User sender;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "recipient_id", nullable = false)
-    private User recipient;
+    @JoinColumn(name = "receiver_id", nullable = false)
+    private User receiver;
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
@@ -46,10 +46,10 @@ public class DirectChatMessage {
     public DirectChatMessage() {
     }
 
-    public DirectChatMessage(Long id, User sender, User recipient, String content, LocalDateTime createdAt) {
+    public DirectChatMessage(Long id, User sender, User receiver, String content, LocalDateTime createdAt) {
         this.id = id;
         this.sender = sender;
-        this.recipient = recipient;
+        this.receiver = receiver;
         this.content = content;
         this.createdAt = createdAt != null ? createdAt : LocalDateTime.now();
     }
@@ -58,8 +58,8 @@ public class DirectChatMessage {
     public void setId(Long id) { this.id = id; }
     public User getSender() { return sender; }
     public void setSender(User sender) { this.sender = sender; }
-    public User getRecipient() { return recipient; }
-    public void setRecipient(User recipient) { this.recipient = recipient; }
+    public User getReceiver() { return receiver; }
+    public void setReceiver(User receiver) { this.receiver = receiver; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
     public LocalDateTime getCreatedAt() { return createdAt; }

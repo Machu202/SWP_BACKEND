@@ -71,7 +71,7 @@ class DirectChatServiceTests {
         when(fixture.users.findById(1L)).thenReturn(Optional.of(fixture.mangaka));
         when(fixture.tasks.findByMangakaId(1L)).thenReturn(List.of());
         when(fixture.series.findByMangakaId(1L)).thenReturn(List.of(series));
-        when(fixture.messages.countByRecipient_IdAndSender_IdAndReadAtIsNull(1L, 3L)).thenReturn(4L);
+        when(fixture.messages.countByReceiver_IdAndSender_IdAndReadAtIsNull(1L, 3L)).thenReturn(4L);
 
         var contacts = fixture.service.getContacts(1L);
 

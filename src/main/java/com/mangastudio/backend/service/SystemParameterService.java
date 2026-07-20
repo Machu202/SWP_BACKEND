@@ -8,10 +8,10 @@ public interface SystemParameterService {
     SystemParameter getParameterByKey(String key);
     
     // [BỔ SUNG] Hàm tạo mới tham số
-    SystemParameter createParameter(String key, String value);
+    SystemParameter createParameter(String key, String value, String type, Long currentUserId);
     
-    SystemParameter updateParameter(String key, String value);
+    SystemParameter updateParameter(String key, String value, String type, Long currentUserId);
     
     // [BỔ SUNG] Hàm xóa tham số
-    void deleteParameter(String key);
+    void deleteParameter(String key, Long currentUserId);
 }

@@ -78,7 +78,7 @@ public class DirectChatServiceImpl implements DirectChatService {
                     user.getUsername(),
                     user.getRole() != null ? user.getRole().getRoleName() : "Studio member",
                     List.copyOf(contact.seriesTitles),
-                    directChatMessageRepository.countByRecipient_IdAndSender_IdAndReadAtIsNull(currentUserId, user.getId())));
+                    directChatMessageRepository.countByReceiver_IdAndSender_IdAndReadAtIsNull(currentUserId, user.getId())));
         }
         result.sort(Comparator.comparing(DirectChatContactResponse::getFullName, String.CASE_INSENSITIVE_ORDER));
         return result;
@@ -194,7 +194,7 @@ public class DirectChatServiceImpl implements DirectChatService {
 
     private DirectChatMessageResponse toResponse(DirectChatMessage message) {
         User sender = message.getSender();
-        User recipient = message.getRecipient();
+        User recipient = message.getReceiver();
         return new DirectChatMessageResponse(
                 message.getId(),
                 sender != null ? sender.getId() : null,
