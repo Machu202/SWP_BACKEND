@@ -3,6 +3,7 @@ package com.mangastudio.backend.controller;
 import com.mangastudio.backend.dto.request.GoogleLoginRequest;
 import com.mangastudio.backend.dto.request.LoginRequest;
 import com.mangastudio.backend.dto.request.RegisterRequest;
+import com.mangastudio.backend.dto.request.RequestOtpRequest;
 import com.mangastudio.backend.dto.request.VerifyOtpRequest;
 import com.mangastudio.backend.dto.response.JwtResponse;
 import com.mangastudio.backend.dto.response.MessageResponse;
@@ -98,8 +99,8 @@ public class AuthController {
     }
 
     @PostMapping("/request-otp")
-    public ResponseEntity<MessageResponse> requestOtp(@Valid @RequestBody LoginRequest loginRequest) {
-        return ResponseEntity.ok(authService.authenticateUserAndGenerateOtp(loginRequest));
+    public ResponseEntity<MessageResponse> requestOtp(@Valid @RequestBody RequestOtpRequest request) {
+        return ResponseEntity.ok(authService.generateOtpForEmail(request));
     }
 
     @PostMapping("/verify-otp")

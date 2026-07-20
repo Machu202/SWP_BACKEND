@@ -10,8 +10,8 @@ import org.springframework.beans.factory.annotation.Value;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
-import com.mangastudio.backend.dto.request.LoginRequest;
 import com.mangastudio.backend.dto.request.RegisterRequest;
+import com.mangastudio.backend.dto.request.RequestOtpRequest;
 import com.mangastudio.backend.dto.request.VerifyOtpRequest;
 import com.mangastudio.backend.dto.response.JwtResponse;
 import com.mangastudio.backend.dto.response.MessageResponse;
@@ -29,17 +29,18 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Random;
+import java.security.SecureRandom;
 
 @Service
 public class AuthServiceImpl implements AuthService {
+
+    private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
@@ -68,18 +69,23 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public MessageResponse authenticateUserAndGenerateOtp(LoginRequest loginRequest) {
-        // 1. Verify username and password using Spring Security
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        String userEmail = userDetails.getEmail();
+    public MessageResponse generateOtpForEmail(RequestOtpRequest request) {
+        String requestedEmail = request.getEmail().trim();
+        User user = userRepository.findByEmailIgnoreCase(requestedEmail)
+                .orElseThrow(() -> new RuntimeException("Error: No account is linked to this email."));
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            throw new AccessDeniedException("Your account has been locked. Please contact Admin.");
+        }
+        String userEmail = user.getEmail();
+        if (userEmail == null || userEmail.isBlank()) {
+            throw new RuntimeException("Error: This account does not have an email address for OTP login.");
+        }
 
         // 2. Delete any old OTPs for this email to prevent spam/confusion
         otpRepository.deleteByEmail(userEmail);
 
         // 3. Generate a random 6-digit OTP
-        String otpCode = String.format("%06d", new Random().nextInt(999999));
+        String otpCode = String.format("%06d", OTP_RANDOM.nextInt(1_000_000));
 
         // 4. Save the OTP to the database with a 5-minute expiration
         OtpCode newOtp = OtpCode.builder()
@@ -93,14 +99,18 @@ public class AuthServiceImpl implements AuthService {
         sendOtpEmail(userEmail, otpCode);
 
         // 6. Return response asking user to check email
-        return new MessageResponse("Authentication successful! An OTP has been sent to your email.");
+        return new MessageResponse("An OTP has been sent to your email.");
     }
 
     @Override
     @Transactional
     public JwtResponse verifyOtpAndLogin(VerifyOtpRequest request) {
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail().trim())
+                .orElseThrow(() -> new RuntimeException("Error: Invalid email or OTP code!"));
+        String canonicalEmail = user.getEmail();
+
         // 1. Find the OTP record in the database
-        OtpCode otpRecord = otpRepository.findByEmailAndCode(request.getEmail(), request.getOtpCode())
+        OtpCode otpRecord = otpRepository.findByEmailAndCode(canonicalEmail, request.getOtpCode().trim())
                 .orElseThrow(() -> new RuntimeException("Error: Invalid OTP code!"));
 
         // 2. Check if the OTP has expired
@@ -109,9 +119,11 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Error: OTP code has expired. Please login again.");
         }
 
-        // 3. OTP is valid! Retrieve the user
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Error: User not found!"));
+        // 3. OTP is valid and belongs to the resolved account.
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            otpRepository.delete(otpRecord);
+            throw new AccessDeniedException("Your account has been locked. Please contact Admin.");
+        }
 
         // 4. Create authentication token and set it in context
         UserDetailsImpl userDetails = UserDetailsImpl.build(user);
@@ -225,31 +237,41 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public JwtResponse googleLogin(GoogleLoginRequest request) {
         try {
+            if (googleClientId == null || googleClientId.isBlank()) {
+                throw new RuntimeException("Error: Google login is not configured on the server.");
+            }
+            if (request == null || request.getToken() == null || request.getToken().isBlank()) {
+                throw new RuntimeException("Error: Google ID token is required.");
+            }
+
             // 1. Khởi tạo cỗ máy xác thực của Google
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(),
-                    new GsonFactory())
-                    .setAudience(Collections.singletonList(googleClientId))
+                    GsonFactory.getDefaultInstance())
+                    .setAudience(Collections.singletonList(googleClientId.trim()))
                     .build();
 
             // 2. Xác minh Token từ Frontend gửi lên
-            GoogleIdToken idToken = verifier.verify(request.getToken());
+            GoogleIdToken idToken = verifier.verify(request.getToken().trim());
             if (idToken == null) {
                 throw new RuntimeException("Error: Invalid or expired Google ID token.");
             }
 
             // 3. Rút trích thông tin người dùng từ Google
             GoogleIdToken.Payload payload = idToken.getPayload();
-            String email = payload.getEmail();
+            String email = payload.getEmail() == null ? "" : payload.getEmail().trim();
             String name = (String) payload.get("name");
+            if (email.isBlank() || !Boolean.TRUE.equals(payload.getEmailVerified())) {
+                throw new RuntimeException("Error: Google did not provide a verified email address.");
+            }
 
             // 4. Kiểm tra xem người dùng đã có tài khoản trong hệ thống chưa
-            Optional<User> userOptional = userRepository.findByEmail(email);
+            Optional<User> userOptional = userRepository.findByEmailIgnoreCase(email);
             User user;
 
             if (userOptional.isPresent()) {
                 user = userOptional.get();
                 // Bắt buộc kiểm tra xem tài khoản có bị Admin khóa không (FE-03)
-                if (!user.getIsActive()) {
+                if (Boolean.FALSE.equals(user.getIsActive())) {
                     throw new RuntimeException("Error: Your account has been locked. Please contact Admin.");
                 }
             } else {
@@ -263,12 +285,12 @@ public class AuthServiceImpl implements AuthService {
 
                 // Cắt tên email ra làm username mặc định (Ví dụ: "ducky@gmail.com" ->
                 // "ducky_abcd")
-                String baseUsername = email.split("@")[0] + "_" + UUID.randomUUID().toString().substring(0, 4);
+                String baseUsername = createUniqueGoogleUsername(email);
 
                 user = User.builder()
                         .username(baseUsername)
                         .email(email)
-                        .fullName(name)
+                        .fullName(name == null || name.isBlank() ? email.split("@")[0] : name.trim())
                         .passwordHash(encoder.encode(randomPassword))
                         .role(defaultRole)
                         .isActive(true)
@@ -293,8 +315,23 @@ public class AuthServiceImpl implements AuthService {
 
             return new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), role);
 
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Error: Google login failed - " + e.getMessage());
+            throw new RuntimeException("Error: Google token verification could not be completed. Please try again.", e);
         }
+    }
+
+    private String createUniqueGoogleUsername(String email) {
+        String localPart = email.split("@")[0]
+                .replaceAll("[^A-Za-z0-9._-]", "_");
+        if (localPart.isBlank()) localPart = "google_user";
+        if (localPart.length() > 70) localPart = localPart.substring(0, 70);
+
+        for (int attempt = 0; attempt < 10; attempt++) {
+            String candidate = localPart + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+            if (!userRepository.existsByUsername(candidate)) return candidate;
+        }
+        throw new RuntimeException("Error: Could not create a unique username for this Google account.");
     }
 }
