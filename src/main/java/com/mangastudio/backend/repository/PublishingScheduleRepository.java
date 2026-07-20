@@ -18,7 +18,15 @@ public interface PublishingScheduleRepository extends JpaRepository<PublishingSc
     List<PublishingSchedule> findDueSeriesLaunches(@Param("frequency") String frequency,
                                                    @Param("now") LocalDateTime now);
 
+    @Query("SELECT schedule FROM PublishingSchedule schedule JOIN FETCH schedule.mangaSeries JOIN FETCH schedule.chapter "
+            + "WHERE UPPER(schedule.frequency) = UPPER(:frequency) "
+            + "AND schedule.publishDate <= :now ORDER BY schedule.publishDate ASC, schedule.id ASC")
+    List<PublishingSchedule> findDueChapterLaunches(@Param("frequency") String frequency,
+                                                    @Param("now") LocalDateTime now);
+
     void deleteByMangaSeriesIdAndFrequencyIgnoreCase(Long seriesId, String frequency);
+
+    void deleteByChapterIdAndFrequencyIgnoreCase(Long chapterId, String frequency);
 
     void deleteByMangaSeriesId(Long seriesId);
 }

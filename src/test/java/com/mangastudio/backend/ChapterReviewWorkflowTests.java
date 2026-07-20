@@ -4,10 +4,12 @@ import com.mangastudio.backend.dto.response.ChapterResponse;
 import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.entity.Role;
+import com.mangastudio.backend.entity.PublishingSchedule;
 import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.TaskRepository;
+import com.mangastudio.backend.repository.PublishingScheduleRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.impl.ChapterServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +18,7 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -26,6 +29,7 @@ class ChapterReviewWorkflowTests {
     private MangaSeriesRepository mangaSeriesRepository;
     private UserRepository userRepository;
     private TaskRepository taskRepository;
+    private PublishingScheduleRepository publishingScheduleRepository;
     private ChapterServiceImpl service;
 
     @BeforeEach
@@ -34,7 +38,9 @@ class ChapterReviewWorkflowTests {
         mangaSeriesRepository = mock(MangaSeriesRepository.class);
         userRepository = mock(UserRepository.class);
         taskRepository = mock(TaskRepository.class);
-        service = new ChapterServiceImpl(chapterRepository, mangaSeriesRepository, userRepository, taskRepository);
+        publishingScheduleRepository = mock(PublishingScheduleRepository.class);
+        service = new ChapterServiceImpl(chapterRepository, mangaSeriesRepository, userRepository, taskRepository,
+                publishingScheduleRepository);
     }
 
     @Test
@@ -159,6 +165,64 @@ class ChapterReviewWorkflowTests {
         assertThrows(AccessDeniedException.class,
                 () -> service.updateChapterStatus(6L, 8L, "APPROVED"));
         verify(chapterRepository, never()).save(any());
+    }
+
+    @Test
+    void ownerMangakaCanPublishApprovedChapterInOngoingSeries() {
+        User mangaka = user(2L, "Mangaka");
+        MangaSeries series = series(10L, mangaka, user(4L, "Tantou Editor"));
+        series.setStatus("ONGOING");
+        Chapter chapter = chapter(20L, series, "APPROVED");
+
+        when(chapterRepository.findById(20L)).thenReturn(Optional.of(chapter));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(mangaka));
+        when(chapterRepository.save(chapter)).thenReturn(chapter);
+
+        ChapterResponse response = service.updateChapterStatus(20L, 2L, "PUBLISHED");
+
+        assertEquals("PUBLISHED", response.getPublishStatus());
+        verify(publishingScheduleRepository)
+                .deleteByChapterIdAndFrequencyIgnoreCase(20L, "CHAPTER_LAUNCH");
+    }
+
+    @Test
+    void ownerMangakaCannotPublishChapterBeforeSeriesIsOngoing() {
+        User mangaka = user(2L, "Mangaka");
+        MangaSeries series = series(10L, mangaka, user(4L, "Tantou Editor"));
+        Chapter chapter = chapter(20L, series, "APPROVED");
+
+        when(chapterRepository.findById(20L)).thenReturn(Optional.of(chapter));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(mangaka));
+
+        RuntimeException error = assertThrows(RuntimeException.class,
+                () -> service.updateChapterStatus(20L, 2L, "PUBLISHED"));
+
+        assertTrue(error.getMessage().contains("series is ONGOING"));
+        verify(chapterRepository, never()).save(any());
+    }
+
+    @Test
+    void ownerMangakaCanScheduleApprovedChapterWithDurableCountdown() {
+        User mangaka = user(2L, "Mangaka");
+        MangaSeries series = series(10L, mangaka, user(4L, "Tantou Editor"));
+        series.setStatus("ONGOING");
+        Chapter chapter = chapter(20L, series, "APPROVED");
+        LocalDateTime publishAt = LocalDateTime.now().plusHours(1);
+
+        when(chapterRepository.findById(20L)).thenReturn(Optional.of(chapter));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(mangaka));
+        when(chapterRepository.save(chapter)).thenReturn(chapter);
+        when(publishingScheduleRepository.save(any(PublishingSchedule.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PublishingSchedule schedule = service.schedulePublication(20L, 2L, publishAt);
+
+        assertEquals("SCHEDULED", chapter.getPublishStatus());
+        assertEquals("CHAPTER_LAUNCH", schedule.getFrequency());
+        assertEquals(publishAt, schedule.getPublishDate());
+        assertEquals(20L, schedule.getChapter().getId());
+        verify(publishingScheduleRepository)
+                .deleteByChapterIdAndFrequencyIgnoreCase(20L, "CHAPTER_LAUNCH");
     }
 
     @Test

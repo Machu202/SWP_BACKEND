@@ -12,6 +12,7 @@ import com.mangastudio.backend.service.PageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -36,6 +37,12 @@ public class PageServiceImpl implements PageService {
         if (!chapter.getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to modify this chapter");
         }
+        if (pageNumber == null || pageNumber < 1) {
+            throw new RuntimeException("Error: Page number must be greater than zero");
+        }
+        if (pageRepository.existsByChapterIdAndPageNumber(chapterId, pageNumber)) {
+            throw new RuntimeException("Page number is unique");
+        }
 
         try {
             Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
@@ -49,7 +56,7 @@ public class PageServiceImpl implements PageService {
                     .pageNumber(pageNumber)
                     .imageUrl(fileUrl)
                     .build();
-            Page savedPage = pageRepository.save(page);
+            Page savedPage = pageRepository.saveAndFlush(page);
 
             // [FE-43] Tạo mốc lịch sử Version 1 khi upload lần đầu
             saveVersionSnapshot(savedPage, fileUrl, 1);
@@ -57,6 +64,8 @@ public class PageServiceImpl implements PageService {
             return savedPage;
         } catch (IOException ex) {
             throw new RuntimeException("Error: Failed to upload page image to Cloudinary", ex);
+        } catch (DataIntegrityViolationException ex) {
+            throw new RuntimeException("Page number is unique", ex);
         }
     }
 

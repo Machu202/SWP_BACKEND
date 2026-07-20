@@ -4,10 +4,12 @@ import com.mangastudio.backend.dto.request.ChapterCreateRequest;
 import com.mangastudio.backend.dto.response.ChapterResponse;
 import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.MangaSeries;
+import com.mangastudio.backend.entity.PublishingSchedule;
 import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.TaskRepository;
+import com.mangastudio.backend.repository.PublishingScheduleRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.ChapterService;
 import org.springframework.security.access.AccessDeniedException;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,15 +34,18 @@ public class ChapterServiceImpl implements ChapterService {
     private final MangaSeriesRepository mangaSeriesRepository;
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
+    private final PublishingScheduleRepository publishingScheduleRepository;
 
     public ChapterServiceImpl(ChapterRepository chapterRepository,
                               MangaSeriesRepository mangaSeriesRepository,
                               UserRepository userRepository,
-                              TaskRepository taskRepository) {
+                              TaskRepository taskRepository,
+                              PublishingScheduleRepository publishingScheduleRepository) {
         this.chapterRepository = chapterRepository;
         this.mangaSeriesRepository = mangaSeriesRepository;
         this.userRepository = userRepository;
         this.taskRepository = taskRepository;
+        this.publishingScheduleRepository = publishingScheduleRepository;
     }
 
     @Override
@@ -122,6 +128,9 @@ public class ChapterServiceImpl implements ChapterService {
             if ("REVIEWING".equals(newStatus)) {
                 validateChapterReadyForTantou(chapter);
             }
+            if ("PUBLISHED".equals(newStatus)) {
+                validateChapterPublication(chapter);
+            }
             valid = isValidMangakaTransition(currentStatus, newStatus);
         } else {
             boolean legacyReady = "DRAFT".equals(currentStatus) && isLegacyApprovedTaskReview(chapter);
@@ -134,7 +143,58 @@ public class ChapterServiceImpl implements ChapterService {
         }
 
         chapter.setPublishStatus(newStatus);
-        return mapToResponse(chapterRepository.save(chapter), false);
+        Chapter savedChapter = chapterRepository.save(chapter);
+        if ("PUBLISHED".equals(newStatus)) {
+            publishingScheduleRepository.deleteByChapterIdAndFrequencyIgnoreCase(chapterId, "CHAPTER_LAUNCH");
+        }
+        return mapToResponse(savedChapter, false);
+    }
+
+    @Override
+    @Transactional
+    public PublishingSchedule schedulePublication(Long chapterId, Long currentUserId, LocalDateTime publishAt) {
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Error: Chapter not found"));
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new RuntimeException("Error: User not found"));
+        MangaSeries series = chapter.getMangaSeries();
+
+        if (!hasRole(currentUser, "MANGAKA") || series.getMangaka() == null
+                || !series.getMangaka().getId().equals(currentUserId)) {
+            throw new AccessDeniedException("You do not have permission to schedule this chapter publication.");
+        }
+        validateChapterPublication(chapter);
+        if (!"APPROVED".equals(normalizeStatus(chapter.getPublishStatus(), "DRAFT"))) {
+            throw new RuntimeException("Error: Only an APPROVED chapter can be scheduled for publication.");
+        }
+        if (publishAt == null || !publishAt.isAfter(LocalDateTime.now())) {
+            throw new RuntimeException("Error: The publication time must be in the future.");
+        }
+
+        publishingScheduleRepository.deleteByChapterIdAndFrequencyIgnoreCase(chapterId, "CHAPTER_LAUNCH");
+        chapter.setPublishStatus("SCHEDULED");
+        chapterRepository.save(chapter);
+        return publishingScheduleRepository.save(PublishingSchedule.builder()
+                .mangaSeries(series)
+                .chapter(chapter)
+                .publishDate(publishAt)
+                .frequency("CHAPTER_LAUNCH")
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void publishScheduledChapter(Long chapterId) {
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Error: Chapter not found"));
+        validateChapterPublication(chapter);
+        String status = normalizeStatus(chapter.getPublishStatus(), "DRAFT");
+        if (!Set.of("APPROVED", "SCHEDULED").contains(status)) {
+            throw new RuntimeException("Error: Scheduled publication requires an APPROVED or SCHEDULED chapter.");
+        }
+        chapter.setPublishStatus("PUBLISHED");
+        chapterRepository.save(chapter);
+        publishingScheduleRepository.deleteByChapterIdAndFrequencyIgnoreCase(chapterId, "CHAPTER_LAUNCH");
     }
 
     @Override
@@ -170,11 +230,19 @@ public class ChapterServiceImpl implements ChapterService {
         }
     }
 
+    private void validateChapterPublication(Chapter chapter) {
+        MangaSeries series = chapter.getMangaSeries();
+        if (series == null || !"ONGOING".equals(normalizeStatus(series.getStatus(), "DRAFT"))) {
+            throw new RuntimeException("Error: Chapters can only be published while the manga series is ONGOING.");
+        }
+    }
+
     private boolean isValidMangakaTransition(String currentStatus, String newStatus) {
         return switch (currentStatus) {
-            case "DRAFT" -> Set.of("REVIEWING", "SCHEDULED", "PUBLISHED").contains(newStatus);
+            case "DRAFT" -> "REVIEWING".equals(newStatus);
             case "REVISION" -> Set.of("REVIEWING", "DRAFT").contains(newStatus);
-            case "SCHEDULED" -> Set.of("PUBLISHED", "DRAFT").contains(newStatus);
+            case "APPROVED" -> Set.of("PUBLISHED", "SCHEDULED").contains(newStatus);
+            case "SCHEDULED" -> Set.of("PUBLISHED", "APPROVED").contains(newStatus);
             case "PUBLISHED" -> "ARCHIVED".equals(newStatus);
             case "ARCHIVED" -> "PUBLISHED".equals(newStatus);
             default -> false;

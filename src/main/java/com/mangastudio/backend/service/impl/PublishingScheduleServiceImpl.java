@@ -31,8 +31,8 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
         if (!series.getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to schedule this series");
         }
-        if ("SERIES_LAUNCH".equalsIgnoreCase(request.getFrequency())) {
-            throw new RuntimeException("Error: Use the approved-series Publish workflow to schedule a series launch.");
+        if (isReservedLaunchFrequency(request.getFrequency())) {
+            throw new RuntimeException("Error: Use the dedicated publication workflow to schedule a launch.");
         }
 
         PublishingSchedule newSchedule = PublishingSchedule.builder()
@@ -62,9 +62,9 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
         if (!schedule.getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to modify this schedule");
         }
-        if ("SERIES_LAUNCH".equalsIgnoreCase(schedule.getFrequency())
-                || "SERIES_LAUNCH".equalsIgnoreCase(request.getFrequency())) {
-            throw new RuntimeException("Error: Manage the series launch from the approved-series Publish workflow.");
+        if (isReservedLaunchFrequency(schedule.getFrequency())
+                || isReservedLaunchFrequency(request.getFrequency())) {
+            throw new RuntimeException("Error: Manage launches from the dedicated publication workflow.");
         }
 
         schedule.setPublishDate(request.getPublishDate());
@@ -93,7 +93,17 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
                         chapter.setPublishStatus("APPROVED");
                         chapterRepository.save(chapter);
                     });
+        } else if ("CHAPTER_LAUNCH".equalsIgnoreCase(schedule.getFrequency())
+                && schedule.getChapter() != null
+                && "SCHEDULED".equalsIgnoreCase(schedule.getChapter().getPublishStatus())) {
+            schedule.getChapter().setPublishStatus("APPROVED");
+            chapterRepository.save(schedule.getChapter());
         }
         scheduleRepository.delete(schedule);
+    }
+
+    private boolean isReservedLaunchFrequency(String frequency) {
+        return "SERIES_LAUNCH".equalsIgnoreCase(frequency)
+                || "CHAPTER_LAUNCH".equalsIgnoreCase(frequency);
     }
 }

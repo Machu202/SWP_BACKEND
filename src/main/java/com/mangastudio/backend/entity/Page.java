@@ -8,7 +8,10 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
-@Table(name = "pages") // Chuyển thành số nhiều cho chuẩn quy tắc Database
+@Table(name = "pages", uniqueConstraints = @UniqueConstraint(
+        name = "uk_pages_chapter_page_number",
+        columnNames = {"chapter_id", "page_number"}
+)) // Mỗi số trang chỉ xuất hiện một lần trong cùng chapter.
 @EntityListeners(com.mangastudio.backend.listener.PageVersioningListener.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Page {
