@@ -3,6 +3,8 @@ package com.mangastudio.backend;
 import com.mangastudio.backend.entity.*;
 import com.mangastudio.backend.repository.*;
 import com.mangastudio.backend.service.NotificationService;
+import com.mangastudio.backend.service.WorkspaceService;
+import com.mangastudio.backend.service.TaskService;
 import com.mangastudio.backend.service.impl.TantouFeedbackServiceImpl;
 import org.junit.jupiter.api.Test;
 import java.util.Optional;
@@ -13,7 +15,7 @@ class TantouFeedbackMangakaCommentTests {
     @Test
     void owningMangakaCanCommentUsingDedicatedFeedbackEndpoint() {
         TantouFeedbackRepository feedbacks = mock(TantouFeedbackRepository.class); PageRepository pages = mock(PageRepository.class); UserRepository users = mock(UserRepository.class);
-        TantouFeedbackServiceImpl service = new TantouFeedbackServiceImpl(feedbacks, pages, users, mock(NotificationService.class));
+        TantouFeedbackServiceImpl service = new TantouFeedbackServiceImpl(feedbacks, pages, users, mock(NotificationService.class), mock(WorkspaceService.class), mock(TaskService.class));
         User mangaka = User.builder().id(1L).role(Role.builder().roleName("Mangaka").build()).build();
         MangaSeries series = MangaSeries.builder().mangaka(mangaka).build(); Chapter chapter = Chapter.builder().mangaSeries(series).build();
         Page page = Page.builder().id(5L).chapter(chapter).build();
