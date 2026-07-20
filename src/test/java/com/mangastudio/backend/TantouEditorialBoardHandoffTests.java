@@ -49,7 +49,8 @@ class TantouEditorialBoardHandoffTests {
                 mock(com.mangastudio.backend.repository.BoardChatMessageRepository.class),
                 mock(com.mangastudio.backend.repository.DeadlineEventRepository.class),
                 mock(com.mangastudio.backend.repository.PublishingScheduleRepository.class),
-                mock(com.mangastudio.backend.repository.TelemetryAnalyticsRepository.class));
+                mock(com.mangastudio.backend.repository.TelemetryAnalyticsRepository.class),
+                mock(com.mangastudio.backend.service.TelemetryBufferService.class));
     }
 
     @Test

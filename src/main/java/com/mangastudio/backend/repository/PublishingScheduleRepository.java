@@ -2,12 +2,23 @@ package com.mangastudio.backend.repository;
 
 import com.mangastudio.backend.entity.PublishingSchedule;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface PublishingScheduleRepository extends JpaRepository<PublishingSchedule, Long> {
     
     // Tìm lịch phát hành theo ID truyện, sắp xếp ngày tháng tăng dần (gần nhất lên trước)
     List<PublishingSchedule> findByMangaSeriesIdOrderByPublishDateAsc(Long seriesId);
+
+    @Query("SELECT schedule FROM PublishingSchedule schedule JOIN FETCH schedule.mangaSeries "
+            + "WHERE UPPER(schedule.frequency) = UPPER(:frequency) "
+            + "AND schedule.publishDate <= :now ORDER BY schedule.publishDate ASC, schedule.id ASC")
+    List<PublishingSchedule> findDueSeriesLaunches(@Param("frequency") String frequency,
+                                                   @Param("now") LocalDateTime now);
+
+    void deleteByMangaSeriesIdAndFrequencyIgnoreCase(Long seriesId, String frequency);
 
     void deleteByMangaSeriesId(Long seriesId);
 }

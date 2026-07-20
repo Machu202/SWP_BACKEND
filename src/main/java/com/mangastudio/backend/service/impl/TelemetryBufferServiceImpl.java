@@ -4,6 +4,7 @@ import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.entity.TelemetryAnalytics;
 import com.mangastudio.backend.repository.ChapterRepository;
+import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.TelemetryAnalyticsRepository;
 import com.mangastudio.backend.service.TelemetryBufferService;
 import lombok.RequiredArgsConstructor;
@@ -21,10 +22,26 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TelemetryBufferServiceImpl implements TelemetryBufferService {
 
     private final ChapterRepository chapterRepository;
+    private final MangaSeriesRepository mangaSeriesRepository;
     private final TelemetryAnalyticsRepository telemetryRepository;
 
     // L1 RAM Buffer: Lưu trữ tạm thời lượt xem theo ID của Chapter
     private final Map<Long, AtomicLong> viewBuffer = new ConcurrentHashMap<>();
+
+    @Override
+    @Transactional
+    public void initializeSeries(Long seriesId) {
+        if (telemetryRepository.findByMangaSeriesId(seriesId).isPresent()) return;
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+        telemetryRepository.save(TelemetryAnalytics.builder()
+                .mangaSeries(series)
+                .recordedBy(series.getMangaka())
+                .readerVotes(0)
+                .views(0)
+                .calculatedAt(LocalDateTime.now())
+                .build());
+    }
 
     @Override
     public void recordChapterView(Long chapterId) {

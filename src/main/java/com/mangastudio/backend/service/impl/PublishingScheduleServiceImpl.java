@@ -3,6 +3,7 @@ package com.mangastudio.backend.service.impl;
 import com.mangastudio.backend.dto.request.PublishingScheduleRequest;
 import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.entity.PublishingSchedule;
+import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.PublishingScheduleRepository;
 import com.mangastudio.backend.service.PublishingScheduleService;
@@ -18,6 +19,7 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
 
     private final PublishingScheduleRepository scheduleRepository;
     private final MangaSeriesRepository mangaSeriesRepository;
+    private final ChapterRepository chapterRepository;
 
     @Override
     @Transactional
@@ -28,6 +30,9 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
         // Khóa bảo mật: Chỉ Mangaka của bộ truyện mới được tạo lịch
         if (!series.getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to schedule this series");
+        }
+        if ("SERIES_LAUNCH".equalsIgnoreCase(request.getFrequency())) {
+            throw new RuntimeException("Error: Use the approved-series Publish workflow to schedule a series launch.");
         }
 
         PublishingSchedule newSchedule = PublishingSchedule.builder()
@@ -57,6 +62,10 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
         if (!schedule.getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to modify this schedule");
         }
+        if ("SERIES_LAUNCH".equalsIgnoreCase(schedule.getFrequency())
+                || "SERIES_LAUNCH".equalsIgnoreCase(request.getFrequency())) {
+            throw new RuntimeException("Error: Manage the series launch from the approved-series Publish workflow.");
+        }
 
         schedule.setPublishDate(request.getPublishDate());
         schedule.setFrequency(request.getFrequency());
@@ -74,6 +83,17 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
             throw new RuntimeException("Error: You do not have permission to delete this schedule");
         }
 
+        if ("SERIES_LAUNCH".equalsIgnoreCase(schedule.getFrequency())
+                && "APPROVED".equalsIgnoreCase(schedule.getMangaSeries().getStatus())) {
+            chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(schedule.getMangaSeries().getId())
+                    .stream()
+                    .filter(chapter -> "SCHEDULED".equalsIgnoreCase(chapter.getPublishStatus()))
+                    .findFirst()
+                    .ifPresent(chapter -> {
+                        chapter.setPublishStatus("APPROVED");
+                        chapterRepository.save(chapter);
+                    });
+        }
         scheduleRepository.delete(schedule);
     }
 }

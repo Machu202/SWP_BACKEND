@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -38,6 +39,7 @@ class MangaSeriesSecurityAndStateTests {
     private DeadlineEventRepository deadlineEventRepository;
     private PublishingScheduleRepository publishingScheduleRepository;
     private TelemetryAnalyticsRepository telemetryAnalyticsRepository;
+    private com.mangastudio.backend.service.TelemetryBufferService telemetryBufferService;
     private MangaSeriesServiceImpl service;
 
     @BeforeEach
@@ -52,10 +54,11 @@ class MangaSeriesSecurityAndStateTests {
         deadlineEventRepository = mock(DeadlineEventRepository.class);
         publishingScheduleRepository = mock(PublishingScheduleRepository.class);
         telemetryAnalyticsRepository = mock(TelemetryAnalyticsRepository.class);
+        telemetryBufferService = mock(com.mangastudio.backend.service.TelemetryBufferService.class);
         service = new MangaSeriesServiceImpl(
                 mangaSeriesRepository, userRepository, boardVoteRepository, chapterRepository, notificationService,
                 boardVoteHistoryRepository, boardChatMessageRepository, deadlineEventRepository,
-                publishingScheduleRepository, telemetryAnalyticsRepository);
+                publishingScheduleRepository, telemetryAnalyticsRepository, telemetryBufferService);
     }
 
     @Test
@@ -207,6 +210,66 @@ class MangaSeriesSecurityAndStateTests {
         assertEquals("APPROVED", result.getStatus());
         assertEquals(4L, result.getTantou().getId());
         verify(mangaSeriesRepository).save(series);
+    }
+
+    @Test
+    void approvedEmptySeriesCannotBePublished() {
+        User owner = user(2L, "Mangaka");
+        MangaSeries series = series(16L, owner, "APPROVED");
+        when(mangaSeriesRepository.findById(16L)).thenReturn(Optional.of(series));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(owner));
+        when(chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(16L)).thenReturn(java.util.List.of());
+
+        assertThrows(RuntimeException.class, () -> service.updateSeriesStatus(16L, 2L, "ONGOING"));
+
+        verify(mangaSeriesRepository, never()).save(any());
+        verify(telemetryBufferService, never()).initializeSeries(anyLong());
+    }
+
+    @Test
+    void approvedSeriesPublishesFirstApprovedChapterAndInitializesTelemetry() {
+        User owner = user(2L, "Mangaka");
+        MangaSeries series = series(17L, owner, "APPROVED");
+        var chapter = com.mangastudio.backend.entity.Chapter.builder()
+                .id(170L).mangaSeries(series).chapterNumber(1).publishStatus("APPROVED").build();
+        when(mangaSeriesRepository.findById(17L)).thenReturn(Optional.of(series));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(owner));
+        when(chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(17L))
+                .thenReturn(java.util.List.of(chapter));
+        when(mangaSeriesRepository.save(series)).thenReturn(series);
+
+        var response = service.updateSeriesStatus(17L, 2L, "ONGOING");
+
+        assertEquals("ONGOING", response.getStatus());
+        assertEquals("PUBLISHED", chapter.getPublishStatus());
+        verify(chapterRepository).save(chapter);
+        verify(telemetryBufferService).initializeSeries(17L);
+        verify(publishingScheduleRepository)
+                .deleteByMangaSeriesIdAndFrequencyIgnoreCase(17L, "SERIES_LAUNCH");
+    }
+
+    @Test
+    void approvedOwnerCanScheduleFirstChapterForFutureLaunch() {
+        User owner = user(2L, "Mangaka");
+        MangaSeries series = series(18L, owner, "APPROVED");
+        var chapter = com.mangastudio.backend.entity.Chapter.builder()
+                .id(180L).mangaSeries(series).chapterNumber(1).publishStatus("APPROVED").build();
+        when(mangaSeriesRepository.findById(18L)).thenReturn(Optional.of(series));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(owner));
+        when(chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(18L))
+                .thenReturn(java.util.List.of(chapter));
+        when(publishingScheduleRepository.save(any(com.mangastudio.backend.entity.PublishingSchedule.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        LocalDateTime publishAt = LocalDateTime.now().plusDays(1);
+
+        var schedule = service.schedulePublication(18L, 2L, publishAt);
+
+        assertEquals("SCHEDULED", chapter.getPublishStatus());
+        assertEquals("SERIES_LAUNCH", schedule.getFrequency());
+        assertEquals(publishAt, schedule.getPublishDate());
+        verify(publishingScheduleRepository)
+                .deleteByMangaSeriesIdAndFrequencyIgnoreCase(18L, "SERIES_LAUNCH");
+        verify(telemetryBufferService, never()).initializeSeries(anyLong());
     }
 
     @Test

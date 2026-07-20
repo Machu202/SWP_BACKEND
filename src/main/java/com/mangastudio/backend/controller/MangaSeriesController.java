@@ -5,6 +5,7 @@ import com.mangastudio.backend.dto.request.MangaSeriesCreateRequest;
 import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
 import com.mangastudio.backend.entity.MangaSeries;
+import com.mangastudio.backend.entity.PublishingSchedule;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.MangaSeriesService;
 import jakarta.validation.Valid;
@@ -13,7 +14,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.format.annotation.DateTimeFormat;
 import io.swagger.v3.oas.annotations.Operation;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -72,6 +75,18 @@ public class MangaSeriesController {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         MangaSeriesResponse response = mangaSeriesService.updateSeriesStatus(id, userDetails.getId(), newStatus);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/publication-schedule")
+    @PreAuthorize("hasRole('MANGAKA')")
+    @Operation(summary = "Schedule an approved manga series and its first publicable chapter for launch")
+    public ResponseEntity<PublishingSchedule> schedulePublication(
+            @PathVariable Long id,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime publishAt,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(mangaSeriesService.schedulePublication(id, userDetails.getId(), publishAt));
     }
 
     @PatchMapping("/{id}/tantou")

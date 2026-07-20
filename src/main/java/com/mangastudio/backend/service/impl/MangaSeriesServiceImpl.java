@@ -5,12 +5,14 @@ import com.mangastudio.backend.dto.request.MangaSeriesUpdateRequest;
 import com.mangastudio.backend.dto.response.MangaSeriesResponse;
 import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.MangaSeries;
+import com.mangastudio.backend.entity.PublishingSchedule;
 import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.MangaSeriesService;
 import com.mangastudio.backend.service.NotificationService;
+import com.mangastudio.backend.service.TelemetryBufferService;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +43,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
     private final DeadlineEventRepository deadlineEventRepository;
     private final PublishingScheduleRepository publishingScheduleRepository;
     private final TelemetryAnalyticsRepository telemetryAnalyticsRepository;
+    private final TelemetryBufferService telemetryBufferService;
 
     public MangaSeriesServiceImpl(MangaSeriesRepository mangaSeriesRepository,
                                   UserRepository userRepository,
@@ -51,7 +54,8 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                                   BoardChatMessageRepository boardChatMessageRepository,
                                   DeadlineEventRepository deadlineEventRepository,
                                   PublishingScheduleRepository publishingScheduleRepository,
-                                  TelemetryAnalyticsRepository telemetryAnalyticsRepository) {
+                                  TelemetryAnalyticsRepository telemetryAnalyticsRepository,
+                                  TelemetryBufferService telemetryBufferService) {
         this.mangaSeriesRepository = mangaSeriesRepository;
         this.userRepository = userRepository;
         this.boardVoteRepository = boardVoteRepository;
@@ -62,6 +66,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         this.deadlineEventRepository = deadlineEventRepository;
         this.publishingScheduleRepository = publishingScheduleRepository;
         this.telemetryAnalyticsRepository = telemetryAnalyticsRepository;
+        this.telemetryBufferService = telemetryBufferService;
     }
 
     @Override
@@ -177,10 +182,58 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
             resetBoardVotesForNewReviewCycle(seriesId);
         }
 
+        if ("APPROVED".equals(normalizedCurrentStatus) && "ONGOING".equals(newStatus)) {
+            return publishApprovedSeries(series);
+        }
+
         series.setStatus(newStatus);
         MangaSeries updatedSeries = mangaSeriesRepository.save(series);
         
         return mapToResponse(updatedSeries);
+    }
+
+    @Override
+    @Transactional
+    public PublishingSchedule schedulePublication(Long seriesId, Long currentUserId, LocalDateTime publishAt) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new RuntimeException("Error: User not found"));
+
+        if (!hasRole(currentUser, "MANGAKA") || series.getMangaka() == null
+                || !series.getMangaka().getId().equals(currentUserId)) {
+            throw new AccessDeniedException("You do not have permission to schedule this series publication.");
+        }
+        if (!"APPROVED".equals(normalizeStatus(series.getStatus(), "DRAFT"))) {
+            throw new RuntimeException("Error: Only an APPROVED manga series can be scheduled for publication.");
+        }
+        if (publishAt == null || !publishAt.isAfter(LocalDateTime.now())) {
+            throw new RuntimeException("Error: The publication time must be in the future.");
+        }
+
+        Chapter launchChapter = requirePublicableChapter(seriesId);
+        if ("APPROVED".equals(normalizeStatus(launchChapter.getPublishStatus(), "DRAFT"))) {
+            launchChapter.setPublishStatus("SCHEDULED");
+            chapterRepository.save(launchChapter);
+        }
+
+        publishingScheduleRepository.deleteByMangaSeriesIdAndFrequencyIgnoreCase(seriesId, "SERIES_LAUNCH");
+        return publishingScheduleRepository.save(PublishingSchedule.builder()
+                .mangaSeries(series)
+                .publishDate(publishAt)
+                .frequency("SERIES_LAUNCH")
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void publishScheduledSeries(Long seriesId) {
+        MangaSeries series = mangaSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
+        if (!"APPROVED".equals(normalizeStatus(series.getStatus(), "DRAFT"))) {
+            throw new RuntimeException("Error: Scheduled publication requires an APPROVED manga series.");
+        }
+        publishApprovedSeries(series);
     }
 
     // [BỔ SUNG] Cập nhật thông tin (Metadata)
@@ -400,6 +453,35 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                     "Tantou Editor is already assigned to another manga series. "
                             + "Each Tantou Editor can only be assigned to one manga series.");
         }
+    }
+
+    private MangaSeriesResponse publishApprovedSeries(MangaSeries series) {
+        Chapter launchChapter = requirePublicableChapter(series.getId());
+        launchChapter.setPublishStatus("PUBLISHED");
+        chapterRepository.save(launchChapter);
+
+        series.setStatus("ONGOING");
+        MangaSeries publishedSeries = mangaSeriesRepository.save(series);
+
+        // Create the zero-value analytics row before the first public reader
+        // arrives so the existing in-memory view buffer is ready immediately.
+        telemetryBufferService.initializeSeries(series.getId());
+        publishingScheduleRepository.deleteByMangaSeriesIdAndFrequencyIgnoreCase(
+                series.getId(), "SERIES_LAUNCH");
+        return mapToResponse(publishedSeries);
+    }
+
+    private Chapter requirePublicableChapter(Long seriesId) {
+        List<Chapter> chapters = chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(seriesId);
+        if (chapters.isEmpty()) {
+            throw new RuntimeException("Error: Cannot publish an empty manga series. Create and approve at least one chapter first.");
+        }
+        Chapter firstChapter = chapters.get(0);
+        if (!List.of("APPROVED", "SCHEDULED")
+                .contains(normalizeStatus(firstChapter.getPublishStatus(), "DRAFT"))) {
+            throw new RuntimeException("Error: Chapter 1 must be APPROVED before publishing this manga series.");
+        }
+        return firstChapter;
     }
 
     private void validateAllChaptersApprovedForBoard(MangaSeries series) {
