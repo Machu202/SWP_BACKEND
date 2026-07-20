@@ -10,6 +10,8 @@ import com.mangastudio.backend.repository.PageRepository;
 import com.mangastudio.backend.repository.TantouFeedbackRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.NotificationService;
+import com.mangastudio.backend.service.WorkspaceService;
+import com.mangastudio.backend.service.TaskService;
 import com.mangastudio.backend.service.impl.TantouFeedbackServiceImpl;
 import org.junit.jupiter.api.Test;
 
@@ -80,6 +82,8 @@ class TantouFeedbackNotificationTests {
         private final PageRepository pages = mock(PageRepository.class);
         private final UserRepository users = mock(UserRepository.class);
         private final NotificationService notifications = mock(NotificationService.class);
+        private final WorkspaceService workspace = mock(WorkspaceService.class);
+        private final TaskService tasks = mock(TaskService.class);
         private final User mangaka = User.builder()
                 .id(1L)
                 .role(Role.builder().roleName("Mangaka").build())
@@ -99,7 +103,7 @@ class TantouFeedbackNotificationTests {
         private final Chapter chapter = Chapter.builder().id(20L).mangaSeries(series).build();
         private final Page page = Page.builder().id(30L).chapter(chapter).build();
         private final TantouFeedbackServiceImpl service = new TantouFeedbackServiceImpl(
-                feedbacks, pages, users, notifications);
+                feedbacks, pages, users, notifications, workspace, tasks);
 
         private TantouFeedback feedback(boolean resolved) {
             return TantouFeedback.builder()

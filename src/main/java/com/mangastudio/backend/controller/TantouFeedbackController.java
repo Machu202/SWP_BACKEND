@@ -1,6 +1,7 @@
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.entity.TantouFeedback;
+import com.mangastudio.backend.entity.Task;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.TantouFeedbackService;
 import org.springframework.http.HttpStatus;
@@ -51,6 +52,16 @@ public class TantouFeedbackController {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         TantouFeedback comment = tantouFeedbackService.addMangakaComment(feedbackId, userDetails.getId(), content);
         return ResponseEntity.status(HttpStatus.CREATED).body(comment);
+    }
+
+    @PostMapping("/{feedbackId}/assistant-task")
+    public ResponseEntity<Task> createAssistantTask(
+            @PathVariable Long feedbackId,
+            @RequestParam Long assistantId,
+            Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        Task task = tantouFeedbackService.createAssistantTask(feedbackId, userDetails.getId(), assistantId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(task);
     }
 
     @PatchMapping("/{feedbackId}/resolve")
