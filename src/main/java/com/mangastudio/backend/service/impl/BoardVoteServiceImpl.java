@@ -1,6 +1,7 @@
 package com.mangastudio.backend.service.impl;
 
 import com.mangastudio.backend.dto.response.BoardVoteHistoryResponse;
+import com.mangastudio.backend.dto.response.AdminBoardVoteHistoryResponse;
 import com.mangastudio.backend.dto.response.BoardVoteSummaryResponse;
 import com.mangastudio.backend.entity.BoardVote;
 import com.mangastudio.backend.entity.BoardVoteHistory;
@@ -120,6 +121,60 @@ public class BoardVoteServiceImpl implements BoardVoteService {
                 BoardVoteHistoryResponse::getVotedAt,
                 Comparator.nullsLast(Comparator.reverseOrder())));
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdminBoardVoteHistoryResponse> getAdminVoteHistory() {
+        List<AdminBoardVoteHistoryResponse> result = new ArrayList<>();
+        Set<String> auditedMemberSeries = new HashSet<>();
+
+        for (BoardVoteHistory history : boardVoteHistoryRepository.findAllHistoryWithDetails()) {
+            User member = history.getBoardMember();
+            MangaSeries series = history.getMangaSeries();
+            auditedMemberSeries.add(memberSeriesKey(member, series));
+            result.add(toAdminHistoryResponse(
+                    history.getId(), member, series, history.getIsApproved(), history.getVotedAt()));
+        }
+
+        // Preserve visibility for votes created before the immutable audit table existed.
+        for (BoardVote vote : boardVoteRepository.findAllCurrentVotesWithDetails()) {
+            if (auditedMemberSeries.contains(memberSeriesKey(vote.getBoardMember(), vote.getMangaSeries()))) continue;
+            result.add(toAdminHistoryResponse(
+                    vote.getId(), vote.getBoardMember(), vote.getMangaSeries(),
+                    vote.getIsApproved(), vote.getCreatedAt()));
+        }
+
+        result.sort(Comparator.comparing(
+                AdminBoardVoteHistoryResponse::getVotedAt,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+        return result;
+    }
+
+    private String memberSeriesKey(User member, MangaSeries series) {
+        return String.valueOf(member != null ? member.getId() : null)
+                + ":" + String.valueOf(series != null ? series.getId() : null);
+    }
+
+    private AdminBoardVoteHistoryResponse toAdminHistoryResponse(Long voteId, User member,
+                                                                 MangaSeries series, Boolean approved,
+                                                                 LocalDateTime votedAt) {
+        return new AdminBoardVoteHistoryResponse(
+                voteId,
+                member != null ? member.getId() : null,
+                displayName(member),
+                series != null ? series.getId() : null,
+                series != null && series.getTitle() != null ? series.getTitle() : "Manga Series",
+                series != null ? series.getCoverImageUrl() : null,
+                approved,
+                votedAt);
+    }
+
+    private String displayName(User user) {
+        if (user == null) return "Editorial Board member";
+        if (user.getFullName() != null && !user.getFullName().isBlank()) return user.getFullName().trim();
+        if (user.getUsername() != null && !user.getUsername().isBlank()) return user.getUsername().trim();
+        return "Editorial Board #" + user.getId();
     }
 
     private BoardVoteHistoryResponse toHistoryResponse(Long voteId, MangaSeries series,

@@ -14,4 +14,11 @@ public interface BoardVoteHistoryRepository extends JpaRepository<BoardVoteHisto
             + "WHERE history.boardMember.id = :memberId "
             + "ORDER BY history.votedAt DESC, history.id DESC")
     List<BoardVoteHistory> findHistoryForMember(@Param("memberId") Long memberId);
+
+    @Query("SELECT history FROM BoardVoteHistory history "
+            + "JOIN FETCH history.mangaSeries JOIN FETCH history.boardMember "
+            + "ORDER BY history.votedAt DESC, history.id DESC")
+    List<BoardVoteHistory> findAllHistoryWithDetails();
+
+    void deleteByMangaSeriesId(Long seriesId);
 }

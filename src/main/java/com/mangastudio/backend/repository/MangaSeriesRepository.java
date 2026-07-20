@@ -17,6 +17,8 @@ public interface MangaSeriesRepository extends JpaRepository<MangaSeries, Long> 
 
     boolean existsByTantou_IdAndIdNot(Long tantouId, Long seriesId);
 
+    boolean existsByMangaka_IdAndTantou_Id(Long mangakaId, Long tantouId);
+
     Page<MangaSeries> findByStatus(String status, Pageable pageable);
 
     // User-facing series numbers are dense among currently existing rows. The

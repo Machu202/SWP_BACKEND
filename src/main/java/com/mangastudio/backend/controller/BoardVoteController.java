@@ -1,6 +1,7 @@
 package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.response.BoardVoteHistoryResponse;
+import com.mangastudio.backend.dto.response.AdminBoardVoteHistoryResponse;
 import com.mangastudio.backend.dto.response.BoardVoteSummaryResponse;
 import com.mangastudio.backend.entity.BoardVote;
 import com.mangastudio.backend.security.UserDetailsImpl;
@@ -48,5 +49,11 @@ public class BoardVoteController {
     public ResponseEntity<List<BoardVoteHistoryResponse>> getMyVoteHistory(Authentication authentication) {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return ResponseEntity.ok(boardVoteService.getMyVoteHistory(userDetails.getId()));
+    }
+
+    @GetMapping("/admin/history")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<List<AdminBoardVoteHistoryResponse>> getAdminVoteHistory() {
+        return ResponseEntity.ok(boardVoteService.getAdminVoteHistory());
     }
 }

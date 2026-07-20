@@ -8,4 +8,6 @@ public interface PublishingScheduleRepository extends JpaRepository<PublishingSc
     
     // Tìm lịch phát hành theo ID truyện, sắp xếp ngày tháng tăng dần (gần nhất lên trước)
     List<PublishingSchedule> findByMangaSeriesIdOrderByPublishDateAsc(Long seriesId);
+
+    void deleteByMangaSeriesId(Long seriesId);
 }

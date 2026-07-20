@@ -9,6 +9,11 @@ import com.mangastudio.backend.repository.BoardVoteRepository;
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
+import com.mangastudio.backend.repository.BoardVoteHistoryRepository;
+import com.mangastudio.backend.repository.BoardChatMessageRepository;
+import com.mangastudio.backend.repository.DeadlineEventRepository;
+import com.mangastudio.backend.repository.PublishingScheduleRepository;
+import com.mangastudio.backend.repository.TelemetryAnalyticsRepository;
 import com.mangastudio.backend.service.impl.MangaSeriesServiceImpl;
 import com.mangastudio.backend.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +33,11 @@ class MangaSeriesSecurityAndStateTests {
     private BoardVoteRepository boardVoteRepository;
     private ChapterRepository chapterRepository;
     private NotificationService notificationService;
+    private BoardVoteHistoryRepository boardVoteHistoryRepository;
+    private BoardChatMessageRepository boardChatMessageRepository;
+    private DeadlineEventRepository deadlineEventRepository;
+    private PublishingScheduleRepository publishingScheduleRepository;
+    private TelemetryAnalyticsRepository telemetryAnalyticsRepository;
     private MangaSeriesServiceImpl service;
 
     @BeforeEach
@@ -37,7 +47,15 @@ class MangaSeriesSecurityAndStateTests {
         boardVoteRepository = mock(BoardVoteRepository.class);
         chapterRepository = mock(ChapterRepository.class);
         notificationService = mock(NotificationService.class);
-        service = new MangaSeriesServiceImpl(mangaSeriesRepository, userRepository, boardVoteRepository, chapterRepository, notificationService);
+        boardVoteHistoryRepository = mock(BoardVoteHistoryRepository.class);
+        boardChatMessageRepository = mock(BoardChatMessageRepository.class);
+        deadlineEventRepository = mock(DeadlineEventRepository.class);
+        publishingScheduleRepository = mock(PublishingScheduleRepository.class);
+        telemetryAnalyticsRepository = mock(TelemetryAnalyticsRepository.class);
+        service = new MangaSeriesServiceImpl(
+                mangaSeriesRepository, userRepository, boardVoteRepository, chapterRepository, notificationService,
+                boardVoteHistoryRepository, boardChatMessageRepository, deadlineEventRepository,
+                publishingScheduleRepository, telemetryAnalyticsRepository);
     }
 
     @Test
@@ -221,6 +239,28 @@ class MangaSeriesSecurityAndStateTests {
         assertEquals("DRAFT", series.getStatus());
         verify(boardVoteRepository, never()).deleteByMangaSeriesId(30L);
         verify(mangaSeriesRepository).save(series);
+    }
+
+    @Test
+    void rejectedOwnerCanDeleteSeriesAndEverySeriesOwnedRecord() {
+        User owner = user(2L, "Mangaka");
+        MangaSeries series = series(40L, owner, "REJECTED");
+        var chapter = com.mangastudio.backend.entity.Chapter.builder()
+                .id(401L).mangaSeries(series).chapterNumber(1).publishStatus("APPROVED").build();
+        when(mangaSeriesRepository.findById(40L)).thenReturn(Optional.of(series));
+        when(chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(40L)).thenReturn(java.util.List.of(chapter));
+
+        service.deleteSeries(40L, 2L);
+
+        verify(boardChatMessageRepository).deleteByMangaSeriesId(40L);
+        verify(boardVoteHistoryRepository).deleteByMangaSeriesId(40L);
+        verify(boardVoteRepository).deleteByMangaSeriesId(40L);
+        verify(deadlineEventRepository).deleteByMangaSeriesId(40L);
+        verify(publishingScheduleRepository).deleteByMangaSeriesId(40L);
+        verify(telemetryAnalyticsRepository).deleteByMangaSeriesId(40L);
+        verify(chapterRepository).deleteAll(java.util.List.of(chapter));
+        verify(chapterRepository).flush();
+        verify(mangaSeriesRepository).delete(series);
     }
 
     @Test

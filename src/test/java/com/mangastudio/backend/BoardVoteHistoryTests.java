@@ -71,4 +71,27 @@ class BoardVoteHistoryTests {
         assertEquals("Robot cat", result.get(0).getSummary());
         assertEquals(true, result.get(0).getIsApproved());
     }
+
+    @Test
+    void adminHistoryIncludesBoardMemberDecisionAndSeries() {
+        BoardVoteRepository votes = mock(BoardVoteRepository.class);
+        BoardVoteHistoryRepository history = mock(BoardVoteHistoryRepository.class);
+        MangaSeriesRepository seriesRepository = mock(MangaSeriesRepository.class);
+        UserRepository users = mock(UserRepository.class);
+        BoardVoteServiceImpl service = new BoardVoteServiceImpl(votes, history, seriesRepository, users);
+
+        User member = User.builder().id(7L).username("nori").fullName("Nori Board")
+                .role(Role.builder().roleName("Editorial Board").build()).build();
+        MangaSeries series = MangaSeries.builder().id(11L).title("Doraemon").status("REVIEWING").build();
+        BoardVoteHistory entry = new BoardVoteHistory(50L, series, member, false, java.time.LocalDateTime.now());
+        when(history.findAllHistoryWithDetails()).thenReturn(List.of(entry));
+        when(votes.findAllCurrentVotesWithDetails()).thenReturn(List.of());
+
+        var result = service.getAdminVoteHistory();
+
+        assertEquals(1, result.size());
+        assertEquals("Nori Board", result.get(0).getBoardMemberName());
+        assertEquals("Doraemon", result.get(0).getSeriesTitle());
+        assertFalse(result.get(0).getIsApproved());
+    }
 }

@@ -9,6 +9,8 @@ import java.util.List;
 public interface DeadlineEventRepository extends JpaRepository<DeadlineEvent, Long> {
     // Lấy danh sách deadline của một dự án
     List<DeadlineEvent> findByMangaSeriesIdOrderByDeadlineDateAsc(Long seriesId);
+
+    void deleteByMangaSeriesId(Long seriesId);
     
     // Câu query thần thánh của Cron Job: Tìm các deadline ĐÃ TRỄ HẠN nhưng CHƯA ĐƯỢC CẢNH BÁO
     List<DeadlineEvent> findByWarningLevelNotAndDeadlineDateBefore(String warningLevel, LocalDateTime currentTime);

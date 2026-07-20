@@ -15,6 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import com.mangastudio.backend.repository.BoardVoteRepository;
+import com.mangastudio.backend.repository.BoardVoteHistoryRepository;
+import com.mangastudio.backend.repository.BoardChatMessageRepository;
+import com.mangastudio.backend.repository.DeadlineEventRepository;
+import com.mangastudio.backend.repository.PublishingScheduleRepository;
+import com.mangastudio.backend.repository.TelemetryAnalyticsRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -31,17 +36,32 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
     private final BoardVoteRepository boardVoteRepository;
     private final ChapterRepository chapterRepository;
     private final NotificationService notificationService;
+    private final BoardVoteHistoryRepository boardVoteHistoryRepository;
+    private final BoardChatMessageRepository boardChatMessageRepository;
+    private final DeadlineEventRepository deadlineEventRepository;
+    private final PublishingScheduleRepository publishingScheduleRepository;
+    private final TelemetryAnalyticsRepository telemetryAnalyticsRepository;
 
     public MangaSeriesServiceImpl(MangaSeriesRepository mangaSeriesRepository,
                                   UserRepository userRepository,
                                   BoardVoteRepository boardVoteRepository,
                                   ChapterRepository chapterRepository,
-                                  NotificationService notificationService) {
+                                  NotificationService notificationService,
+                                  BoardVoteHistoryRepository boardVoteHistoryRepository,
+                                  BoardChatMessageRepository boardChatMessageRepository,
+                                  DeadlineEventRepository deadlineEventRepository,
+                                  PublishingScheduleRepository publishingScheduleRepository,
+                                  TelemetryAnalyticsRepository telemetryAnalyticsRepository) {
         this.mangaSeriesRepository = mangaSeriesRepository;
         this.userRepository = userRepository;
         this.boardVoteRepository = boardVoteRepository;
         this.chapterRepository = chapterRepository;
         this.notificationService = notificationService;
+        this.boardVoteHistoryRepository = boardVoteHistoryRepository;
+        this.boardChatMessageRepository = boardChatMessageRepository;
+        this.deadlineEventRepository = deadlineEventRepository;
+        this.publishingScheduleRepository = publishingScheduleRepository;
+        this.telemetryAnalyticsRepository = telemetryAnalyticsRepository;
     }
 
     @Override
@@ -197,11 +217,22 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
             throw new AccessDeniedException("You do not have permission to delete this series.");
         }
         
-        // Khóa an toàn: Chỉ được xóa bản nháp
-        if (!"DRAFT".equals(series.getStatus())) {
-            throw new RuntimeException("Error: Cannot delete series. Only projects in 'DRAFT' status can be deleted.");
+        String status = normalizeStatus(series.getStatus(), "DRAFT");
+        if (!List.of("DRAFT", "REJECTED").contains(status)) {
+            throw new RuntimeException("Error: Cannot delete series. Only DRAFT or REJECTED projects can be deleted.");
         }
 
+        // Remove every series-owned record before the series row. Chapter removal
+        // cascades through scripts, pages, page versions, hitboxes, comments,
+        // Tantou feedback and Assistant tasks.
+        boardChatMessageRepository.deleteByMangaSeriesId(seriesId);
+        boardVoteHistoryRepository.deleteByMangaSeriesId(seriesId);
+        boardVoteRepository.deleteByMangaSeriesId(seriesId);
+        deadlineEventRepository.deleteByMangaSeriesId(seriesId);
+        publishingScheduleRepository.deleteByMangaSeriesId(seriesId);
+        telemetryAnalyticsRepository.deleteByMangaSeriesId(seriesId);
+        chapterRepository.deleteAll(chapterRepository.findByMangaSeriesIdOrderByChapterNumberAsc(seriesId));
+        chapterRepository.flush();
         mangaSeriesRepository.delete(series);
     }
 

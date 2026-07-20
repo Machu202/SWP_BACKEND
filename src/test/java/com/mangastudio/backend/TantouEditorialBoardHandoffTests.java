@@ -43,7 +43,13 @@ class TantouEditorialBoardHandoffTests {
         voteRepository = mock(BoardVoteRepository.class);
         chapterRepository = mock(ChapterRepository.class);
         notificationService = mock(NotificationService.class);
-        service = new MangaSeriesServiceImpl(seriesRepository, userRepository, voteRepository, chapterRepository, notificationService);
+        service = new MangaSeriesServiceImpl(
+                seriesRepository, userRepository, voteRepository, chapterRepository, notificationService,
+                mock(com.mangastudio.backend.repository.BoardVoteHistoryRepository.class),
+                mock(com.mangastudio.backend.repository.BoardChatMessageRepository.class),
+                mock(com.mangastudio.backend.repository.DeadlineEventRepository.class),
+                mock(com.mangastudio.backend.repository.PublishingScheduleRepository.class),
+                mock(com.mangastudio.backend.repository.TelemetryAnalyticsRepository.class));
     }
 
     @Test

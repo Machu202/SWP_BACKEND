@@ -2,6 +2,7 @@ package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.request.DirectChatMessageRequest;
 import com.mangastudio.backend.dto.response.DirectChatMessageResponse;
+import com.mangastudio.backend.dto.response.DirectChatContactResponse;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.DirectChatService;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,13 @@ public class DirectChatController {
 
     public DirectChatController(DirectChatService directChatService) {
         this.directChatService = directChatService;
+    }
+
+    @GetMapping("/contacts")
+    @PreAuthorize("hasAnyAuthority('ROLE_MANGAKA', 'ROLE_ASSISTANT', 'ROLE_TANTOU_EDITOR', 'ROLE_TANTOU EDITOR')")
+    public ResponseEntity<List<DirectChatContactResponse>> getContacts(Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return ResponseEntity.ok(directChatService.getContacts(userDetails.getId()));
     }
 
     @GetMapping("/users/{otherUserId}/messages")

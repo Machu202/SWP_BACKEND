@@ -15,6 +15,10 @@ public interface BoardVoteRepository extends JpaRepository<BoardVote, Long> {
     @Query("SELECT vote FROM BoardVote vote JOIN FETCH vote.mangaSeries "
             + "WHERE vote.boardMember.id = :memberId ORDER BY vote.createdAt DESC, vote.id DESC")
     List<BoardVote> findCurrentVotesForMember(@Param("memberId") Long memberId);
+
+    @Query("SELECT vote FROM BoardVote vote JOIN FETCH vote.mangaSeries JOIN FETCH vote.boardMember "
+            + "ORDER BY vote.createdAt DESC, vote.id DESC")
+    List<BoardVote> findAllCurrentVotesWithDetails();
     
     // Đếm tổng số phiếu của dự án
     long countByMangaSeriesId(Long seriesId);

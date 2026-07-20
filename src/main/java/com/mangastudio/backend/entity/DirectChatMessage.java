@@ -40,6 +40,9 @@ public class DirectChatMessage {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "read_at")
+    private LocalDateTime readAt;
+
     public DirectChatMessage() {
     }
 
@@ -61,4 +64,6 @@ public class DirectChatMessage {
     public void setContent(String content) { this.content = content; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getReadAt() { return readAt; }
+    public void setReadAt(LocalDateTime readAt) { this.readAt = readAt; }
 }
