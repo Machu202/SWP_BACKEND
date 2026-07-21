@@ -47,6 +47,7 @@ class PasswordlessOtpServiceTests {
                 mock(PasswordEncoder.class),
                 mock(JwtUtils.class),
                 otpRepository,
+                mock(com.mangastudio.backend.repository.PasswordResetCodeRepository.class),
                 mailSender
         );
     }

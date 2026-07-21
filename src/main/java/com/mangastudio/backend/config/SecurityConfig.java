@@ -66,6 +66,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/request-otp",
                                 "/api/v1/auth/verify-otp",
+                                "/api/v1/auth/forgot-password/request",
+                                "/api/v1/auth/forgot-password/reset",
                                 "/api/v1/auth/google",
                                 "/api/v1/runtime-settings"
                         ).permitAll()

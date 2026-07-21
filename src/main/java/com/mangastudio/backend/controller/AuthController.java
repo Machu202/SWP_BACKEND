@@ -4,6 +4,7 @@ import com.mangastudio.backend.dto.request.GoogleLoginRequest;
 import com.mangastudio.backend.dto.request.LoginRequest;
 import com.mangastudio.backend.dto.request.RegisterRequest;
 import com.mangastudio.backend.dto.request.RequestOtpRequest;
+import com.mangastudio.backend.dto.request.ResetPasswordRequest;
 import com.mangastudio.backend.dto.request.VerifyOtpRequest;
 import com.mangastudio.backend.dto.response.JwtResponse;
 import com.mangastudio.backend.dto.response.MessageResponse;
@@ -106,6 +107,16 @@ public class AuthController {
     @PostMapping("/verify-otp")
     public ResponseEntity<JwtResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
         return ResponseEntity.ok(authService.verifyOtpAndLogin(request));
+    }
+
+    @PostMapping("/forgot-password/request")
+    public ResponseEntity<MessageResponse> requestPasswordReset(@Valid @RequestBody RequestOtpRequest request) {
+        return ResponseEntity.ok(authService.requestPasswordReset(request));
+    }
+
+    @PostMapping("/forgot-password/reset")
+    public ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return ResponseEntity.ok(authService.resetPassword(request));
     }
 
     @PostMapping("/register")

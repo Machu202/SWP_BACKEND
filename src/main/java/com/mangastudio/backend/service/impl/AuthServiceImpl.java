@@ -12,13 +12,16 @@ import java.util.Optional;
 import java.util.UUID;
 import com.mangastudio.backend.dto.request.RegisterRequest;
 import com.mangastudio.backend.dto.request.RequestOtpRequest;
+import com.mangastudio.backend.dto.request.ResetPasswordRequest;
 import com.mangastudio.backend.dto.request.VerifyOtpRequest;
 import com.mangastudio.backend.dto.response.JwtResponse;
 import com.mangastudio.backend.dto.response.MessageResponse;
 import com.mangastudio.backend.entity.OtpCode;
+import com.mangastudio.backend.entity.PasswordResetCode;
 import com.mangastudio.backend.entity.Role;
 import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.OtpRepository;
+import com.mangastudio.backend.repository.PasswordResetCodeRepository;
 import com.mangastudio.backend.repository.RoleRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.security.JwtUtils;
@@ -52,6 +55,7 @@ public class AuthServiceImpl implements AuthService {
 
     // Inject the necessary dependencies for OTP and Email
     private final OtpRepository otpRepository;
+    private final PasswordResetCodeRepository passwordResetCodeRepository;
     private final JavaMailSender mailSender;
 
     @Autowired
@@ -59,13 +63,15 @@ public class AuthServiceImpl implements AuthService {
 
     public AuthServiceImpl(AuthenticationManager authenticationManager, UserRepository userRepository,
                            RoleRepository roleRepository, PasswordEncoder encoder, JwtUtils jwtUtils,
-                           OtpRepository otpRepository, JavaMailSender mailSender) {
+                           OtpRepository otpRepository, PasswordResetCodeRepository passwordResetCodeRepository,
+                           JavaMailSender mailSender) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.encoder = encoder;
         this.jwtUtils = jwtUtils;
         this.otpRepository = otpRepository;
+        this.passwordResetCodeRepository = passwordResetCodeRepository;
         this.mailSender = mailSender;
     }
 
@@ -155,6 +161,60 @@ public class AuthServiceImpl implements AuthService {
         return new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), role);
     }
 
+    @Override
+    @Transactional
+    public MessageResponse requestPasswordReset(RequestOtpRequest request) {
+        String requestedEmail = request.getEmail().trim();
+        Optional<User> userOptional = userRepository.findByEmailIgnoreCase(requestedEmail);
+        String genericMessage = "If an active account is linked to this email, a password reset code has been sent.";
+
+        if (userOptional.isEmpty() || Boolean.FALSE.equals(userOptional.get().getIsActive())) {
+            return new MessageResponse(genericMessage);
+        }
+
+        User user = userOptional.get();
+        String canonicalEmail = user.getEmail();
+        if (canonicalEmail == null || canonicalEmail.isBlank()) {
+            return new MessageResponse(genericMessage);
+        }
+
+        passwordResetCodeRepository.deleteByEmail(canonicalEmail);
+        String resetCode = String.format("%06d", OTP_RANDOM.nextInt(1_000_000));
+        passwordResetCodeRepository.save(PasswordResetCode.builder()
+                .email(canonicalEmail)
+                .code(resetCode)
+                .expirationTime(LocalDateTime.now().plusMinutes(10))
+                .build());
+        sendPasswordResetEmail(canonicalEmail, resetCode);
+        return new MessageResponse(genericMessage);
+    }
+
+    @Override
+    @Transactional
+    public MessageResponse resetPassword(ResetPasswordRequest request) {
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail().trim())
+                .orElseThrow(this::invalidPasswordResetCode);
+        String canonicalEmail = user.getEmail();
+        PasswordResetCode resetCode = passwordResetCodeRepository
+                .findByEmailAndCode(canonicalEmail, request.getOtpCode().trim())
+                .orElseThrow(this::invalidPasswordResetCode);
+
+        if (LocalDateTime.now().isAfter(resetCode.getExpirationTime())) {
+            passwordResetCodeRepository.delete(resetCode);
+            throw invalidPasswordResetCode();
+        }
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            passwordResetCodeRepository.delete(resetCode);
+            throw new AccessDeniedException("Your account has been locked. Please contact Admin.");
+        }
+
+        user.setPasswordHash(encoder.encode(request.getNewPassword()));
+        user.setActiveSessionId(null);
+        userRepository.saveAndFlush(user);
+        passwordResetCodeRepository.delete(resetCode);
+        return new MessageResponse("Password reset successfully. You can now log in.");
+    }
+
     private static final java.util.Map<String, String> PUBLIC_REGISTRATION_ROLES = java.util.Map.of(
             "mangaka", "Mangaka",
             "assistant", "Assistant",
@@ -239,6 +299,25 @@ public class AuthServiceImpl implements AuthService {
             System.err.println(">>> [EMAIL ERROR] Failed to send OTP email: " + e.getMessage());
             throw new RuntimeException("Error: Failed to send OTP email. Please try again later.");
         }
+    }
+
+    private void sendPasswordResetEmail(String toEmail, String resetCode) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(toEmail);
+            message.setSubject("[MangaStudio] Password Reset Code");
+            message.setText("Hello,\n\nYour password reset code is: " + resetCode
+                    + "\n\nThis code will expire in 10 minutes and can be used only once."
+                    + "\nIf you did not request a password reset, you can ignore this email."
+                    + "\n\nBest regards,\nMangaStudio Security System");
+            mailSender.send(message);
+        } catch (Exception exception) {
+            throw new RuntimeException("Error: Failed to send the password reset email. Please try again later.");
+        }
+    }
+
+    private RuntimeException invalidPasswordResetCode() {
+        return new RuntimeException("Error: Invalid or expired password reset code.");
     }
 
     @Override

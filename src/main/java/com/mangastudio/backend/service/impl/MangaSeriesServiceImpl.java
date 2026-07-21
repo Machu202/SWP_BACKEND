@@ -146,7 +146,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         }
 
         String currentStatus = series.getStatus();
-        String newStatus = newStatusStr.toUpperCase();
+        String newStatus = normalizeStatus(newStatusStr, "");
         String normalizedCurrentStatus = (currentStatus != null) ? currentStatus.toUpperCase() : "DRAFT";
 
         boolean isValidTransition = false;
@@ -166,7 +166,8 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                 if (newStatus.equals("ONGOING")) isValidTransition = true;
                 break;
             case "ONGOING":
-                if (newStatus.equals("COMPLETED") || newStatus.equals("HIATUS")) isValidTransition = true;
+                if (newStatus.equals("COMPLETED") || newStatus.equals("HIATUS")
+                        || newStatus.equals("CANCELLED")) isValidTransition = true;
                 break;
             case "HIATUS":
                 if (newStatus.equals("ONGOING") || newStatus.equals("CANCELLED")) isValidTransition = true;

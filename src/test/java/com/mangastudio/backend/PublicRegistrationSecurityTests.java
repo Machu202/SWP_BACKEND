@@ -41,6 +41,7 @@ class PublicRegistrationSecurityTests {
                 encoder,
                 mock(JwtUtils.class),
                 mock(OtpRepository.class),
+                mock(com.mangastudio.backend.repository.PasswordResetCodeRepository.class),
                 mock(JavaMailSender.class)
         );
     }

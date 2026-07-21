@@ -249,6 +249,25 @@ class MangaSeriesSecurityAndStateTests {
     }
 
     @Test
+    void ongoingOwnerCanSetHiatusCancelledOrCompletedStatus() {
+        User owner = user(2L, "Mangaka");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(owner));
+        when(mangaSeriesRepository.save(any(MangaSeries.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        long seriesId = 50L;
+        for (String targetStatus : java.util.List.of("HIATUS", "CANCELLED", "COMPLETED")) {
+            MangaSeries ongoing = series(seriesId, owner, "ONGOING");
+            when(mangaSeriesRepository.findById(seriesId)).thenReturn(Optional.of(ongoing));
+
+            var response = service.updateSeriesStatus(seriesId, 2L, targetStatus);
+
+            assertEquals(targetStatus, response.getStatus());
+            seriesId += 1;
+        }
+    }
+
+    @Test
     void approvedOwnerCanScheduleFirstChapterForFutureLaunch() {
         User owner = user(2L, "Mangaka");
         MangaSeries series = series(18L, owner, "APPROVED");
