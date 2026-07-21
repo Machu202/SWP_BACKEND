@@ -108,7 +108,43 @@ class SystemParameterHardeningTests {
         RuntimeException error = assertThrows(RuntimeException.class, () ->
                 service.createParameter("MAX_PAGES_PER_CHAPTER", "0", "INTEGER", 1L));
 
-        assertEquals("Error: MAX_PAGES_PER_CHAPTER must be at least 1.", error.getMessage());
+        assertEquals("Error: MAX_PAGES_PER_CHAPTER must be between 1 and 10000.", error.getMessage());
+        verify(parameterRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsKnownParameterWithTheWrongType() {
+        RuntimeException error = assertThrows(RuntimeException.class, () ->
+                service.createParameter("ENABLE_GOOGLE_LOGIN", "true", "STRING", 1L));
+
+        assertEquals("Error: ENABLE_GOOGLE_LOGIN must use the BOOLEAN type.", error.getMessage());
+        verify(parameterRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsDeploymentSecretsFromTheBusinessSettingsTable() {
+        RuntimeException error = assertThrows(RuntimeException.class, () ->
+                service.createParameter("JWT_SECRET", "do-not-store-this", "STRING", 1L));
+
+        assertTrue(error.getMessage().contains("credentials and secrets cannot be stored"));
+        verify(parameterRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsApprovalRatioOutsideZeroToOne() {
+        RuntimeException error = assertThrows(RuntimeException.class, () ->
+                service.createParameter("BOARD_APPROVAL_RATIO", "1.1", "DECIMAL", 1L));
+
+        assertTrue(error.getMessage().contains("no greater than 1"));
+        verify(parameterRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsInvalidDeadlineWarningDays() {
+        RuntimeException error = assertThrows(RuntimeException.class, () ->
+                service.createParameter("DEADLINE_WARNING_DAYS", "[0,366]", "JSON", 1L));
+
+        assertTrue(error.getMessage().contains("integers from 1 to 365"));
         verify(parameterRepository, never()).save(any());
     }
 

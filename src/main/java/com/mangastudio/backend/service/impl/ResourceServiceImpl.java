@@ -7,7 +7,9 @@ import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.ResourceRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.ResourceService;
+import com.mangastudio.backend.service.UploadPolicyService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,11 +26,15 @@ public class ResourceServiceImpl implements ResourceService {
     private final UserRepository userRepository;
     private final Cloudinary cloudinary;
 
+    @Autowired
+    private UploadPolicyService uploadPolicyService;
+
     @Override
     @Transactional
     public Resource uploadFile(MultipartFile file, Long uploaderId, String resourceType) {
         User uploader = userRepository.findById(uploaderId)
                 .orElseThrow(() -> new RuntimeException("Error: User not found"));
+        uploadPolicyService.validateFile(file);
 
         try {
             Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(

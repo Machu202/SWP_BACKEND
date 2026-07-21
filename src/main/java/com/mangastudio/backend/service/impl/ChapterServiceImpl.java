@@ -3,15 +3,19 @@ package com.mangastudio.backend.service.impl;
 import com.mangastudio.backend.dto.request.ChapterCreateRequest;
 import com.mangastudio.backend.dto.response.ChapterResponse;
 import com.mangastudio.backend.entity.Chapter;
+import com.mangastudio.backend.entity.DeadlineEvent;
 import com.mangastudio.backend.entity.MangaSeries;
 import com.mangastudio.backend.entity.PublishingSchedule;
 import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.ChapterRepository;
+import com.mangastudio.backend.repository.DeadlineEventRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.TaskRepository;
 import com.mangastudio.backend.repository.PublishingScheduleRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.ChapterService;
+import com.mangastudio.backend.service.RuntimeSystemParameterService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +39,12 @@ public class ChapterServiceImpl implements ChapterService {
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
     private final PublishingScheduleRepository publishingScheduleRepository;
+
+    @Autowired
+    private RuntimeSystemParameterService runtimeParameters;
+
+    @Autowired
+    private DeadlineEventRepository deadlineEventRepository;
 
     public ChapterServiceImpl(ChapterRepository chapterRepository,
                               MangaSeriesRepository mangaSeriesRepository,
@@ -62,7 +72,9 @@ public class ChapterServiceImpl implements ChapterService {
                 .mangaSeries(series)
                 .chapterNumber(request.getChapterNumber())
                 .title(request.getTitle())
-                .publishStatus("DRAFT")
+                .publishStatus(runtimeParameters == null
+                        ? "DRAFT"
+                        : runtimeParameters.stringValue("DEFAULT_CHAPTER_STATUS", "DRAFT").toUpperCase(Locale.ROOT))
                 .build();
 
         return mapToResponse(chapterRepository.save(chapter), false);
@@ -144,6 +156,7 @@ public class ChapterServiceImpl implements ChapterService {
 
         chapter.setPublishStatus(newStatus);
         Chapter savedChapter = chapterRepository.save(chapter);
+        synchronizeReviewTimeout(savedChapter, currentStatus, newStatus);
         if ("PUBLISHED".equals(newStatus)) {
             publishingScheduleRepository.deleteByChapterIdAndFrequencyIgnoreCase(chapterId, "CHAPTER_LAUNCH");
         }
@@ -195,6 +208,27 @@ public class ChapterServiceImpl implements ChapterService {
         chapter.setPublishStatus("PUBLISHED");
         chapterRepository.save(chapter);
         publishingScheduleRepository.deleteByChapterIdAndFrequencyIgnoreCase(chapterId, "CHAPTER_LAUNCH");
+    }
+
+    private void synchronizeReviewTimeout(Chapter chapter, String previousStatus, String newStatus) {
+        if (deadlineEventRepository == null || chapter == null || chapter.getMangaSeries() == null) return;
+        String eventName = "[SYSTEM REVIEW] Chapter " + chapter.getId();
+        Long seriesId = chapter.getMangaSeries().getId();
+
+        if ("REVIEWING".equals(newStatus)) {
+            deadlineEventRepository.deleteByMangaSeriesIdAndEventName(seriesId, eventName);
+            if (runtimeParameters == null) return;
+            var timeoutHours = runtimeParameters.optionalPositiveInteger("REVIEW_TIMEOUT_HOURS", 8_760);
+            if (timeoutHours.isEmpty()) return;
+            deadlineEventRepository.save(DeadlineEvent.builder()
+                    .mangaSeries(chapter.getMangaSeries())
+                    .eventName(eventName)
+                    .deadlineDate(LocalDateTime.now().plusHours(timeoutHours.getAsInt()))
+                    .warningLevel("NORMAL")
+                    .build());
+        } else if ("REVIEWING".equals(previousStatus)) {
+            deadlineEventRepository.deleteByMangaSeriesIdAndEventName(seriesId, eventName);
+        }
     }
 
     @Override

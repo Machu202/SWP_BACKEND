@@ -7,6 +7,7 @@ import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.TelemetryAnalyticsRepository;
 import com.mangastudio.backend.service.TelemetryBufferService;
+import com.mangastudio.backend.component.ConfigurableSchedulerGate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class TelemetryBufferServiceImpl implements TelemetryBufferService {
     private final ChapterRepository chapterRepository;
     private final MangaSeriesRepository mangaSeriesRepository;
     private final TelemetryAnalyticsRepository telemetryRepository;
+    private final ConfigurableSchedulerGate schedulerGate;
 
     // L1 memory buffer: temporarily stores views by chapter ID.
     private final Map<Long, AtomicLong> viewBuffer = new ConcurrentHashMap<>();
@@ -49,11 +51,12 @@ public class TelemetryBufferServiceImpl implements TelemetryBufferService {
         viewBuffer.computeIfAbsent(chapterId, k -> new AtomicLong(0)).incrementAndGet();
     }
 
-    // Scheduled job: flush the buffer every three minutes (180,000 ms).
+    // The one-second heartbeat is gated by TELEMETRY_FLUSH_SECONDS.
     @Override
-    @Scheduled(fixedRate = 180000)
+    @Scheduled(fixedDelay = 1000)
     @Transactional
     public void flushBufferToDatabase() {
+        if (!schedulerGate.shouldRun("telemetry-flush", "TELEMETRY_FLUSH_SECONDS", 180)) return;
         if (viewBuffer.isEmpty()) return;
 
         viewBuffer.forEach((chapterId, count) -> {

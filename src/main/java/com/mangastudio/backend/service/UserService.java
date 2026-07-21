@@ -11,7 +11,7 @@ public interface UserService {
     // [FE-03] Admin-only operations.
     List<UserProfileResponse> getAllUsers();
     UserProfileResponse toggleUserLock(Long userId, boolean isActive);
-    UserProfileResponse assignRole(Long userId, String roleName);
+    UserProfileResponse assignRole(Long userId, String roleName, Long currentAdminId);
     
     List<UserProfileResponse> getUsersByRole(String roleName);
 }

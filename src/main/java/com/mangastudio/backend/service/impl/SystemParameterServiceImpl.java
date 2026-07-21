@@ -20,16 +20,48 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class SystemParameterServiceImpl implements SystemParameterService {
 
-    private static final String MAX_PAGES_PER_CHAPTER = "MAX_PAGES_PER_CHAPTER";
-
     private static final Set<String> SUPPORTED_TYPES = Set.of(
             "STRING", "INTEGER", "DECIMAL", "BOOLEAN", "JSON"
+    );
+    private static final Map<String, String> KNOWN_PARAMETER_TYPES = Map.ofEntries(
+            Map.entry("MAX_UPLOAD_MB", "INTEGER"),
+            Map.entry("MAX_REQUEST_MB", "INTEGER"),
+            Map.entry("MAX_PAGES_PER_CHAPTER", "INTEGER"),
+            Map.entry("MAX_CHAT_MESSAGE_LENGTH", "INTEGER"),
+            Map.entry("REVIEW_TIMEOUT_HOURS", "INTEGER"),
+            Map.entry("DEADLINE_SCAN_SECONDS", "INTEGER"),
+            Map.entry("PUBLICATION_SCAN_SECONDS", "INTEGER"),
+            Map.entry("TELEMETRY_FLUSH_SECONDS", "INTEGER"),
+            Map.entry("ENABLE_PUBLIC_REGISTRATION", "BOOLEAN"),
+            Map.entry("ENABLE_GOOGLE_LOGIN", "BOOLEAN"),
+            Map.entry("ENABLE_EMAIL_OTP", "BOOLEAN"),
+            Map.entry("DEFAULT_SERIES_STATUS", "STRING"),
+            Map.entry("DEFAULT_CHAPTER_STATUS", "STRING"),
+            Map.entry("BOARD_APPROVAL_RATIO", "DECIMAL"),
+            Map.entry("DEADLINE_WARNING_DAYS", "JSON"),
+            Map.entry("ALLOWED_IMAGE_TYPES", "JSON")
+    );
+    private static final Map<String, Long> POSITIVE_INTEGER_MAXIMUMS = Map.ofEntries(
+            Map.entry("MAX_UPLOAD_MB", 10L),
+            Map.entry("MAX_REQUEST_MB", 50L),
+            Map.entry("MAX_PAGES_PER_CHAPTER", 10_000L),
+            Map.entry("MAX_CHAT_MESSAGE_LENGTH", 100_000L),
+            Map.entry("REVIEW_TIMEOUT_HOURS", 8_760L),
+            Map.entry("DEADLINE_SCAN_SECONDS", 86_400L),
+            Map.entry("PUBLICATION_SCAN_SECONDS", 86_400L),
+            Map.entry("TELEMETRY_FLUSH_SECONDS", 86_400L)
+    );
+    private static final Set<String> FORBIDDEN_SENSITIVE_KEYS = Set.of(
+            "DATABASE_PASSWORD", "DATABASE_URL", "DATABASE_USERNAME",
+            "JWT_SECRET", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET",
+            "EMAIL_PASSWORD", "MAIL_PASSWORD", "CORS_ORIGIN", "SERVER_PORT"
     );
 
     private final SystemParameterRepository parameterRepository;
@@ -62,6 +94,7 @@ public class SystemParameterServiceImpl implements SystemParameterService {
     public SystemParameter createParameter(String key, String value, String type, Long currentUserId) {
         User admin = requireAdmin(currentUserId);
         String normalizedKey = normalizeKey(key);
+        validateAllowedKey(normalizedKey);
         String normalizedType = normalizeType(type, "STRING");
         String normalizedValue = validateValue(normalizedKey, value, normalizedType);
 
@@ -92,6 +125,7 @@ public class SystemParameterServiceImpl implements SystemParameterService {
     public SystemParameter updateParameter(String key, String value, String type, Long currentUserId) {
         User admin = requireAdmin(currentUserId);
         String normalizedKey = normalizeKey(key);
+        validateAllowedKey(normalizedKey);
         SystemParameter parameter = parameterRepository.findByParamKeyIgnoreCase(normalizedKey)
                 .orElseThrow(() -> new RuntimeException("Error: Parameter key not found: " + normalizedKey));
 
@@ -182,19 +216,75 @@ public class SystemParameterServiceImpl implements SystemParameterService {
         } catch (Exception exception) {
             throw new RuntimeException("Error: Value '" + normalized + "' is not valid for type " + type + ".");
         }
-        if (MAX_PAGES_PER_CHAPTER.equals(key)) {
-            if (!"INTEGER".equals(type)) {
-                throw new RuntimeException("Error: MAX_PAGES_PER_CHAPTER must use the INTEGER type.");
-            }
-            try {
-                if (Long.parseLong(normalized) < 1) {
-                    throw new RuntimeException("Error: MAX_PAGES_PER_CHAPTER must be at least 1.");
-                }
-            } catch (NumberFormatException exception) {
-                throw new RuntimeException("Error: MAX_PAGES_PER_CHAPTER must be a positive integer.");
+        validateKnownParameter(key, normalized, type);
+        return normalized;
+    }
+
+    private void validateAllowedKey(String key) {
+        if (FORBIDDEN_SENSITIVE_KEYS.contains(key)
+                || key.startsWith("DATASOURCE_")
+                || key.startsWith("CLOUDINARY_SECRET_")
+                || key.endsWith("_PASSWORD")
+                || key.endsWith("_SECRET")) {
+            throw new RuntimeException("Error: Deployment credentials and secrets cannot be stored in System Parameters.");
+        }
+    }
+
+    private void validateKnownParameter(String key, String value, String type) {
+        String expectedType = KNOWN_PARAMETER_TYPES.get(key);
+        if (expectedType != null && !expectedType.equals(type)) {
+            throw new RuntimeException("Error: " + key + " must use the " + expectedType + " type.");
+        }
+
+        Long maximum = POSITIVE_INTEGER_MAXIMUMS.get(key);
+        if (maximum != null) {
+            long parsed = Long.parseLong(value);
+            if (parsed < 1 || parsed > maximum) {
+                throw new RuntimeException("Error: " + key + " must be between 1 and " + maximum + ".");
             }
         }
-        return normalized;
+
+        if ("BOARD_APPROVAL_RATIO".equals(key)) {
+            BigDecimal ratio = new BigDecimal(value);
+            if (ratio.compareTo(BigDecimal.ZERO) <= 0 || ratio.compareTo(BigDecimal.ONE) > 0) {
+                throw new RuntimeException("Error: BOARD_APPROVAL_RATIO must be greater than 0 and no greater than 1.");
+            }
+        }
+
+        if ("DEFAULT_SERIES_STATUS".equals(key) && !"DRAFT".equalsIgnoreCase(value)) {
+            throw new RuntimeException("Error: DEFAULT_SERIES_STATUS must remain DRAFT to preserve the approval workflow.");
+        }
+        if ("DEFAULT_CHAPTER_STATUS".equals(key) && !"DRAFT".equalsIgnoreCase(value)) {
+            throw new RuntimeException("Error: DEFAULT_CHAPTER_STATUS must remain DRAFT to preserve the review workflow.");
+        }
+
+        if ("ALLOWED_IMAGE_TYPES".equals(key)) {
+            try {
+                var root = objectMapper.readTree(value);
+                if (!root.isArray() || root.isEmpty()) throw new IllegalArgumentException("empty array");
+                for (var node : root) {
+                    if (!node.isTextual() || !node.asText().matches("[A-Za-z0-9]+")) {
+                        throw new IllegalArgumentException("invalid image type");
+                    }
+                }
+            } catch (Exception exception) {
+                throw new RuntimeException("Error: ALLOWED_IMAGE_TYPES must be a non-empty JSON array of file extensions.");
+            }
+        }
+
+        if ("DEADLINE_WARNING_DAYS".equals(key)) {
+            try {
+                var root = objectMapper.readTree(value);
+                if (!root.isArray() || root.isEmpty()) throw new IllegalArgumentException("empty array");
+                for (var node : root) {
+                    if (!node.canConvertToInt() || node.asInt() < 1 || node.asInt() > 365) {
+                        throw new IllegalArgumentException("invalid warning day");
+                    }
+                }
+            } catch (Exception exception) {
+                throw new RuntimeException("Error: DEADLINE_WARNING_DAYS must be a JSON array of integers from 1 to 365.");
+            }
+        }
     }
 
     private void saveAudit(String key, String type, String action, String oldValue, String newValue,

@@ -12,7 +12,9 @@ import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.MangaSeriesService;
 import com.mangastudio.backend.service.NotificationService;
+import com.mangastudio.backend.service.RuntimeSystemParameterService;
 import com.mangastudio.backend.service.TelemetryBufferService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,8 @@ import com.mangastudio.backend.repository.DeadlineEventRepository;
 import com.mangastudio.backend.repository.PublishingScheduleRepository;
 import com.mangastudio.backend.repository.TelemetryAnalyticsRepository;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -44,6 +48,9 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
     private final PublishingScheduleRepository publishingScheduleRepository;
     private final TelemetryAnalyticsRepository telemetryAnalyticsRepository;
     private final TelemetryBufferService telemetryBufferService;
+
+    @Autowired
+    private RuntimeSystemParameterService runtimeParameters;
 
     public MangaSeriesServiceImpl(MangaSeriesRepository mangaSeriesRepository,
                                   UserRepository userRepository,
@@ -86,7 +93,9 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
                 .summary(request.getSummary())
                 .description(request.getDescription())
                 .coverImageUrl(request.getCoverImageUrl())
-                .status("DRAFT")
+                .status(runtimeParameters == null
+                        ? "DRAFT"
+                        : runtimeParameters.stringValue("DEFAULT_SERIES_STATUS", "DRAFT").toUpperCase(Locale.ROOT))
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -391,10 +400,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
         // Guard 2: approval requires at least one favorable Editorial Board vote.
         if (isApproved) {
-            long approvedVotes = boardVoteRepository.countByMangaSeriesIdAndIsApproved(seriesId, true);
-            if (approvedVotes == 0) {
-                throw new RuntimeException("Error: Cannot approve! The Editorial Board has cast 0 approval votes for this project.");
-            }
+            validateBoardApprovalThreshold(seriesId);
         }
 
         // Final state: approved -> APPROVED; rejected -> REJECTED.
@@ -415,10 +421,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         }
 
         if (Boolean.TRUE.equals(isApproved)) {
-            long approvedVotes = boardVoteRepository.countByMangaSeriesIdAndIsApproved(seriesId, true);
-            if (approvedVotes == 0) {
-                throw new RuntimeException("Error: Cannot approve a series without at least one Editorial Board approval vote.");
-            }
+            validateBoardApprovalThreshold(seriesId);
 
             if (tantouId != null) {
                 User tantouEditor = userRepository.findById(tantouId)
@@ -443,6 +446,29 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
      */
     private void resetBoardVotesForNewReviewCycle(Long seriesId) {
         boardVoteRepository.deleteByMangaSeriesId(seriesId);
+    }
+
+    private void validateBoardApprovalThreshold(Long seriesId) {
+        long approvedVotes = boardVoteRepository.countByMangaSeriesIdAndIsApproved(seriesId, true);
+        if (approvedVotes == 0) {
+            throw new RuntimeException("Error: Cannot approve a series without an Editorial Board approval vote.");
+        }
+        if (runtimeParameters == null) return;
+
+        var configuredRatio = runtimeParameters.optionalDecimal("BOARD_APPROVAL_RATIO");
+        if (configuredRatio.isEmpty()) return;
+        long totalVotes = boardVoteRepository.countByMangaSeriesId(seriesId);
+        if (totalVotes == 0) {
+            throw new RuntimeException("Error: Cannot calculate the Editorial Board approval ratio without votes.");
+        }
+        BigDecimal actualRatio = BigDecimal.valueOf(approvedVotes)
+                .divide(BigDecimal.valueOf(totalVotes), 8, RoundingMode.HALF_UP);
+        if (actualRatio.compareTo(configuredRatio.get()) < 0) {
+            throw new RuntimeException("Error: Editorial Board approval ratio is "
+                    + actualRatio.stripTrailingZeros().toPlainString()
+                    + ", below the Admin requirement of "
+                    + configuredRatio.get().stripTrailingZeros().toPlainString() + ".");
+        }
     }
 
     private void ensureTantouAvailableForSeries(User tantou, Long seriesId) {

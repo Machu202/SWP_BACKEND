@@ -15,9 +15,11 @@ public class SeriesPublicationScheduler {
 
     private final PublishingScheduleRepository publishingScheduleRepository;
     private final MangaSeriesService mangaSeriesService;
+    private final ConfigurableSchedulerGate schedulerGate;
 
-    @Scheduled(fixedDelay = 5000)
+    @Scheduled(fixedDelay = 1000)
     public void publishDueSeries() {
+        if (!schedulerGate.shouldRun("series-publication", "PUBLICATION_SCAN_SECONDS", 5)) return;
         for (PublishingSchedule schedule : publishingScheduleRepository.findDueSeriesLaunches(
                 "SERIES_LAUNCH", LocalDateTime.now())) {
             try {

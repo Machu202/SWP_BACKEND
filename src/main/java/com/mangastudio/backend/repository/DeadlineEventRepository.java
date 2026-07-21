@@ -11,6 +11,8 @@ public interface DeadlineEventRepository extends JpaRepository<DeadlineEvent, Lo
     List<DeadlineEvent> findByMangaSeriesIdOrderByDeadlineDateAsc(Long seriesId);
 
     void deleteByMangaSeriesId(Long seriesId);
+
+    void deleteByMangaSeriesIdAndEventName(Long seriesId, String eventName);
     
     // Scheduled-job query: finds overdue deadlines that have not been reported.
     List<DeadlineEvent> findByWarningLevelNotAndDeadlineDateBefore(String warningLevel, LocalDateTime currentTime);

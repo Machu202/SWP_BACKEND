@@ -11,7 +11,9 @@ import com.mangastudio.backend.repository.PageRepository;
 import com.mangastudio.backend.repository.PageVersionRepository;
 import com.mangastudio.backend.repository.SystemParameterRepository;
 import com.mangastudio.backend.service.PageService;
+import com.mangastudio.backend.service.UploadPolicyService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -34,6 +36,9 @@ public class PageServiceImpl implements PageService {
     private final PageVersionRepository pageVersionRepository;
     private final SystemParameterRepository systemParameterRepository;
 
+    @Autowired
+    private UploadPolicyService uploadPolicyService;
+
     @Override
     @Transactional
     public Page addPageToChapter(Long chapterId, Integer pageNumber, MultipartFile file, Long currentUserId) {
@@ -49,6 +54,7 @@ public class PageServiceImpl implements PageService {
             throw new RuntimeException("Page number is unique");
         }
         enforceConfiguredPageLimit(chapterId);
+        uploadPolicyService.validatePageImage(file);
 
         try {
             Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
@@ -83,6 +89,7 @@ public class PageServiceImpl implements PageService {
         if (!page.getChapter().getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to update this page");
         }
+        uploadPolicyService.validatePageImage(newFile);
 
         try {
             // 1. Upload the replacement image to Cloudinary.
@@ -129,16 +136,18 @@ public class PageServiceImpl implements PageService {
         SystemParameter parameter = systemParameterRepository
                 .findByParamKeyIgnoreCase(MAX_PAGES_PER_CHAPTER)
                 .orElse(null);
-        if (parameter == null) return;
-
-        int maximum;
-        try {
-            // Parse legacy rows too; all new Admin writes are constrained to INTEGER by the settings service.
-            maximum = Integer.parseInt(parameter.getParamValue().trim());
-            if (maximum < 1) throw new NumberFormatException("value is not positive");
-        } catch (RuntimeException exception) {
-            throw new RuntimeException(
-                    "Error: MAX_PAGES_PER_CHAPTER must be configured as a positive INTEGER.", exception);
+        int maximum = 1000;
+        if (parameter != null) {
+            try {
+                // Parse legacy rows too; all new Admin writes are constrained to INTEGER by the settings service.
+                maximum = Integer.parseInt(parameter.getParamValue().trim());
+                if (maximum < 1 || maximum > 10_000) {
+                    throw new NumberFormatException("value is outside the supported range");
+                }
+            } catch (RuntimeException exception) {
+                throw new RuntimeException(
+                        "Error: MAX_PAGES_PER_CHAPTER must be configured as an INTEGER from 1 to 10000.", exception);
+            }
         }
 
         long currentPageCount = pageRepository.countByChapterId(chapterId);

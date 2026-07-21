@@ -2,6 +2,7 @@ package com.mangastudio.backend.controller;
 
 import com.mangastudio.backend.dto.request.UserProfileUpdateRequest;
 import com.mangastudio.backend.dto.response.UserProfileResponse;
+import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -62,13 +64,14 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserProfileResponse> assignRole(
             @PathVariable Long id,
-            @RequestParam String roleName) {
-        UserProfileResponse response = userService.assignRole(id, roleName);
+            @RequestParam String roleName,
+            @AuthenticationPrincipal UserDetailsImpl currentAdmin) {
+        UserProfileResponse response = userService.assignRole(id, roleName, currentAdmin.getId());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping
-    @Operation(summary = "Filter users by role (VD: ?role=Assistant)")
+    @Operation(summary = "Filter users by role (for example, ?role=Assistant)")
     public ResponseEntity<List<UserProfileResponse>> getUsersByRole(@RequestParam String role) {
         List<UserProfileResponse> users = userService.getUsersByRole(role);
         return ResponseEntity.ok(users);

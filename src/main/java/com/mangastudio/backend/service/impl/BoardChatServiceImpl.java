@@ -8,6 +8,8 @@ import com.mangastudio.backend.repository.BoardChatMessageRepository;
 import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.BoardChatService;
+import com.mangastudio.backend.service.RuntimeSystemParameterService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,11 +19,12 @@ import java.util.List;
 @Service
 public class BoardChatServiceImpl implements BoardChatService {
 
-    private static final int MAX_MESSAGE_LENGTH = 2000;
-
     private final BoardChatMessageRepository boardChatMessageRepository;
     private final MangaSeriesRepository mangaSeriesRepository;
     private final UserRepository userRepository;
+
+    @Autowired
+    private RuntimeSystemParameterService runtimeParameters;
 
     public BoardChatServiceImpl(BoardChatMessageRepository boardChatMessageRepository,
                                 MangaSeriesRepository mangaSeriesRepository,
@@ -57,8 +60,11 @@ public class BoardChatServiceImpl implements BoardChatService {
         if (normalizedContent.isEmpty()) {
             throw new RuntimeException("Voting chat message is required.");
         }
-        if (normalizedContent.length() > MAX_MESSAGE_LENGTH) {
-            throw new RuntimeException("Voting chat messages cannot exceed " + MAX_MESSAGE_LENGTH + " characters.");
+        int maximumLength = runtimeParameters == null
+                ? 2000
+                : runtimeParameters.positiveInteger("MAX_CHAT_MESSAGE_LENGTH", 2000, 100_000);
+        if (normalizedContent.length() > maximumLength) {
+            throw new RuntimeException("Voting chat messages cannot exceed " + maximumLength + " characters.");
         }
 
         BoardChatMessage saved = boardChatMessageRepository.save(

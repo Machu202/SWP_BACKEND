@@ -24,6 +24,8 @@ import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.security.JwtUtils;
 import com.mangastudio.backend.security.UserDetailsImpl;
 import com.mangastudio.backend.service.AuthService;
+import com.mangastudio.backend.service.RuntimeSystemParameterService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.access.AccessDeniedException;
@@ -52,6 +54,9 @@ public class AuthServiceImpl implements AuthService {
     private final OtpRepository otpRepository;
     private final JavaMailSender mailSender;
 
+    @Autowired
+    private RuntimeSystemParameterService runtimeParameters;
+
     public AuthServiceImpl(AuthenticationManager authenticationManager, UserRepository userRepository,
                            RoleRepository roleRepository, PasswordEncoder encoder, JwtUtils jwtUtils,
                            OtpRepository otpRepository, JavaMailSender mailSender) {
@@ -70,6 +75,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public MessageResponse generateOtpForEmail(RequestOtpRequest request) {
+        requireFeatureEnabled("ENABLE_EMAIL_OTP", "Email OTP login");
         String requestedEmail = request.getEmail().trim();
         User user = userRepository.findByEmailIgnoreCase(requestedEmail)
                 .orElseThrow(() -> new RuntimeException("Error: No account is linked to this email."));
@@ -105,6 +111,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public JwtResponse verifyOtpAndLogin(VerifyOtpRequest request) {
+        requireFeatureEnabled("ENABLE_EMAIL_OTP", "Email OTP login");
         User user = userRepository.findByEmailIgnoreCase(request.getEmail().trim())
                 .orElseThrow(() -> new RuntimeException("Error: Invalid email or OTP code!"));
         String canonicalEmail = user.getEmail();
@@ -158,6 +165,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public MessageResponse registerUser(RegisterRequest request) {
+        requireFeatureEnabled("ENABLE_PUBLIC_REGISTRATION", "Public registration");
         String requestedRole = request.getRole() == null ? "" : request.getRole().trim();
         String normalizedRole = requestedRole
                 .replaceFirst("(?i)^ROLE_", "")
@@ -237,6 +245,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public JwtResponse googleLogin(GoogleLoginRequest request) {
         try {
+            requireFeatureEnabled("ENABLE_GOOGLE_LOGIN", "Google login");
             if (googleClientId == null || googleClientId.isBlank()) {
                 throw new RuntimeException("Error: Google login is not configured on the server.");
             }
@@ -332,5 +341,11 @@ public class AuthServiceImpl implements AuthService {
             if (!userRepository.existsByUsername(candidate)) return candidate;
         }
         throw new RuntimeException("Error: Could not create a unique username for this Google account.");
+    }
+
+    private void requireFeatureEnabled(String key, String featureName) {
+        if (runtimeParameters != null && !runtimeParameters.booleanValue(key, true)) {
+            throw new AccessDeniedException(featureName + " is currently disabled by Admin.");
+        }
     }
 }

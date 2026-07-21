@@ -11,6 +11,8 @@ import com.mangastudio.backend.repository.MangaSeriesRepository;
 import com.mangastudio.backend.repository.TaskRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.DirectChatService;
+import com.mangastudio.backend.service.RuntimeSystemParameterService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,12 +30,13 @@ import java.util.TreeSet;
 @Service
 public class DirectChatServiceImpl implements DirectChatService {
 
-    private static final int MAX_MESSAGE_LENGTH = 2000;
-
     private final DirectChatMessageRepository directChatMessageRepository;
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
     private final MangaSeriesRepository mangaSeriesRepository;
+
+    @Autowired
+    private RuntimeSystemParameterService runtimeParameters;
 
     public DirectChatServiceImpl(DirectChatMessageRepository directChatMessageRepository,
                                  UserRepository userRepository,
@@ -106,8 +109,11 @@ public class DirectChatServiceImpl implements DirectChatService {
         if (normalizedContent.isEmpty()) {
             throw new RuntimeException("Chat message is required.");
         }
-        if (normalizedContent.length() > MAX_MESSAGE_LENGTH) {
-            throw new RuntimeException("Chat messages cannot exceed " + MAX_MESSAGE_LENGTH + " characters.");
+        int maximumLength = runtimeParameters == null
+                ? 2000
+                : runtimeParameters.positiveInteger("MAX_CHAT_MESSAGE_LENGTH", 2000, 100_000);
+        if (normalizedContent.length() > maximumLength) {
+            throw new RuntimeException("Chat messages cannot exceed " + maximumLength + " characters.");
         }
 
         DirectChatMessage saved = directChatMessageRepository.save(

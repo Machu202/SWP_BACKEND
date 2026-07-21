@@ -15,9 +15,11 @@ public class ChapterPublicationScheduler {
 
     private final PublishingScheduleRepository publishingScheduleRepository;
     private final ChapterService chapterService;
+    private final ConfigurableSchedulerGate schedulerGate;
 
-    @Scheduled(fixedDelay = 5000)
+    @Scheduled(fixedDelay = 1000)
     public void publishDueChapters() {
+        if (!schedulerGate.shouldRun("chapter-publication", "PUBLICATION_SCAN_SECONDS", 5)) return;
         for (PublishingSchedule schedule : publishingScheduleRepository.findDueChapterLaunches(
                 "CHAPTER_LAUNCH", LocalDateTime.now())) {
             try {

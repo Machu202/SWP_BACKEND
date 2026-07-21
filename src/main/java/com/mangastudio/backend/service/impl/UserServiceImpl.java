@@ -7,6 +7,7 @@ import com.mangastudio.backend.entity.User;
 import com.mangastudio.backend.repository.RoleRepository;
 import com.mangastudio.backend.repository.UserRepository;
 import com.mangastudio.backend.service.UserService;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,7 +81,10 @@ public class UserServiceImpl implements UserService {
     // [FE-03] Changes an account role.
     @Override
     @Transactional
-    public UserProfileResponse assignRole(Long userId, String roleName) {
+    public UserProfileResponse assignRole(Long userId, String roleName, Long currentAdminId) {
+        if (userId != null && userId.equals(currentAdminId)) {
+            throw new AccessDeniedException("Admin cannot change their own role.");
+        }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Error: User not found with ID: " + userId));
                 
