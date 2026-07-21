@@ -4,7 +4,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class PageVersioningListener {
-    // Đã vô hiệu hóa JPA Listener. Logic lưu vết bản thảo (FE-43) 
+    // The JPA listener is disabled. Draft versioning (FE-43)
 }
 
 /*package com.mangastudio.backend.listener;
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityManager; // <-- Nhớ import EntityManager
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.PostUpdate;
 import java.time.LocalDateTime;
@@ -32,24 +32,23 @@ public class PageVersioningListener {
 
     @Autowired
     @Lazy
-    private EntityManager entityManager; // Tiêm cỗ máy quản lý thực thể của JPA vào
+    private EntityManager entityManager;
 
-    // TUYỆT ĐỐI KHÔNG dùng REQUIRES_NEW! 
-    // Dùng REQUIRED để PageVersion hòa chung vào Giao dịch A của PageServiceImpl
+    // Do not use REQUIRES_NEW.
+    // REQUIRED keeps PageVersion in the same transaction as PageServiceImpl.
     @Transactional(propagation = Propagation.REQUIRED)
     @PostPersist
     @PostUpdate
     public void savePageSnapshot(Page page) {
-        // Chốt chặn an toàn: Nếu page chưa có ID hợp lệ thì hủy bỏ ngay
+        // Safety guard: stop when the page does not have a valid ID.
         if (page.getId() == null) {
             return;
         }
 
         PageVersion newVersion = new PageVersion();
         
-        // BÍ QUYẾT Ở ĐÂY: Dùng getReference() để nhờ Hibernate tạo ra một Proxy đại diện 
-        // cho row có id = page.getId() đang nằm trong Persistence Context.
-        // Cách này giúp vượt qua check Khóa ngoại mà không bị lỗi Transient instance!
+        // getReference() creates a Hibernate proxy for the row with page.getId()
+        // in the persistence context, avoiding a transient-instance foreign-key error.
         Page managedPageProxy = entityManager.getReference(Page.class, page.getId());
         newVersion.setPage(managedPageProxy);
         

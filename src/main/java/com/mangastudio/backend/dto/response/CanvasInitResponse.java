@@ -14,10 +14,10 @@ public class CanvasInitResponse {
     private Long pageId;
     private String imageUrl;
     
-    // Kích thước gốc của ảnh, rất quan trọng để FE tính toán tỉ lệ (Proportions)
+    // Original image dimensions used by the frontend to preserve proportions.
     private Double originalWidth;
     private Double originalHeight;
     
-    // Danh sách toàn bộ các vùng chọn đã vẽ trên trang này
+    // Every hitbox drawn on this page.
     private List<Hitbox> hitboxes;
 }

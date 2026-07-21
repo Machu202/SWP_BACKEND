@@ -32,7 +32,7 @@ public class ChapterScriptController {
     }
 
     @GetMapping("/series/{seriesId}")
-    @Operation(summary = "Lấy danh sách toàn bộ kịch bản các chương của một bộ truyện")
+    @Operation(summary = "Get every chapter script for a manga series")
     public ResponseEntity<List<ChapterScript>> getScriptsBySeries(@PathVariable Long seriesId) {
         return ResponseEntity.ok(scriptService.getScriptsBySeries(seriesId));
     }

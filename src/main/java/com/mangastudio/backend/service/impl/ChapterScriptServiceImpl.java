@@ -38,7 +38,7 @@ public class ChapterScriptServiceImpl implements ChapterScriptService {
             throw new RuntimeException("Error: Only the Mangaka of this series can edit the script.");
         }
 
-        // Tìm kịch bản cũ, nếu chưa có thì tạo mới
+        // Update the existing script, or create one when none exists.
         ChapterScript script = scriptRepository.findByChapterId(chapterId)
                 .orElse(new ChapterScript());
 
@@ -51,7 +51,7 @@ public class ChapterScriptServiceImpl implements ChapterScriptService {
 
     @Override
     public List<ChapterScript> getScriptsBySeries(Long seriesId) {
-        // Kiểm tra xem bộ truyện có tồn tại hay không
+        // Verify that the manga series exists.
         mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found with ID: " + seriesId));
 

@@ -46,7 +46,7 @@ public class BoardVoteServiceImpl implements BoardVoteService {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
 
-        // Khóa logic 1: Chỉ dự án đang chờ duyệt mới được phép bỏ phiếu
+        // Guard 1: votes are accepted only while the project awaits review.
         if (!"REVIEWING".equalsIgnoreCase(series.getStatus())) {
             throw new RuntimeException("Error: Can only vote on projects that are in 'REVIEWING' status.");
         }
@@ -54,8 +54,7 @@ public class BoardVoteServiceImpl implements BoardVoteService {
         User member = userRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Error: Board Member not found"));
 
-        // Khóa logic 2: Kiểm tra xem thành viên này đã bỏ phiếu chưa.
-        // Nếu đã bỏ rồi thì cập nhật lại quyết định (Cho phép đổi ý), nếu chưa thì tạo phiếu mới.
+        // Guard 2: update an existing member vote, or create it when this is their first vote.
         BoardVote vote = boardVoteRepository.findByMangaSeriesIdAndBoardMemberId(seriesId, memberId)
                 .orElse(BoardVote.builder()
                         .mangaSeries(series)
@@ -75,11 +74,11 @@ public class BoardVoteServiceImpl implements BoardVoteService {
 
     @Override
     public BoardVoteSummaryResponse getVoteSummary(Long seriesId) {
-        // Kiểm tra dự án tồn tại
+        // Verify that the project exists.
         mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
 
-        // Thực hiện lệnh đếm SQL siêu tốc
+        // Use repository count queries for vote statistics.
         long total = boardVoteRepository.countByMangaSeriesId(seriesId);
         long approved = boardVoteRepository.countByMangaSeriesIdAndIsApproved(seriesId, true);
         long rejected = boardVoteRepository.countByMangaSeriesIdAndIsApproved(seriesId, false);

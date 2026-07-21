@@ -22,7 +22,7 @@ public class DeadlineEventServiceImpl implements DeadlineEventService {
     private final MangaSeriesRepository mangaSeriesRepository;
     private final NotificationService notificationService;
 
-    // Trong file DeadlineEventServiceImpl.java, CHỈ GIỮ LẠI HÀM NÀY:
+    // Creates a deadline event.
 
     @Override
     @Transactional
@@ -60,13 +60,13 @@ public class DeadlineEventServiceImpl implements DeadlineEventService {
     }
 
     // ==========================================
-    // [FE-23] CRON JOB: Chạy tự động mỗi 1 phút
+    // [FE-23] Scheduled job: runs once per minute.
     // ==========================================
     @Override
     @Scheduled(fixedRate = 60000) // 60,000 milliseconds = 1 minute
     @Transactional
     public void scanAndWarnDeadlines() {
-        // 1. Tìm tất cả các sự kiện đã qua thời gian hiện tại nhưng chưa bị dán nhãn "TRIGGERED"
+        // 1. Find overdue events that have not been marked TRIGGERED.
         List<DeadlineEvent> overdueEvents = deadlineEventRepository
                 .findByWarningLevelNotAndDeadlineDateBefore("TRIGGERED", LocalDateTime.now());
 
@@ -76,13 +76,13 @@ public class DeadlineEventServiceImpl implements DeadlineEventService {
             Long mangakaId = event.getMangaSeries().getMangaka().getId();
             String seriesTitle = event.getMangaSeries().getTitle();
 
-            // 2. Soạn tin nhắn cảnh báo
+            // 2. Compose the warning message.
             String warningMsg = "🚨 [URGENT DEADLINE] The project '" + seriesTitle + "' has an overdue event: " + event.getEventName() + "!";
 
-            // 3. Bắn Notification (Hàm này trong NotificationService đã gắn sẵn WebSocket)
+            // 3. Send the notification through the WebSocket-enabled notification service.
             notificationService.createNotification(mangakaId, warningMsg);
 
-            // 4. Khóa sự kiện lại thành TRIGGERED để phút sau nó không bắn spam báo động nữa
+            // 4. Mark the event TRIGGERED so the next run does not send a duplicate warning.
             event.setWarningLevel("TRIGGERED");
             deadlineEventRepository.save(event);
             

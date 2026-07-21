@@ -57,7 +57,7 @@ public class UserServiceImpl implements UserService {
         return mapToProfileResponse(updatedUser);
     }
 
-    // [BỔ SUNG FE-03] Lấy tất cả user
+    // [FE-03] Returns every user.
     @Override
     public List<UserProfileResponse> getAllUsers() {
         return userRepository.findAll().stream()
@@ -65,7 +65,7 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
     }
 
-    // [BỔ SUNG FE-03] Khóa/Mở khóa tài khoản
+    // [FE-03] Locks or unlocks an account.
     @Override
     @Transactional
     public UserProfileResponse toggleUserLock(Long userId, boolean isActive) {
@@ -77,7 +77,7 @@ public class UserServiceImpl implements UserService {
         return mapToProfileResponse(updatedUser);
     }
 
-    // [BỔ SUNG FE-03] Phân quyền tài khoản
+    // [FE-03] Changes an account role.
     @Override
     @Transactional
     public UserProfileResponse assignRole(Long userId, String roleName) {
@@ -95,7 +95,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<UserProfileResponse> getUsersByRole(String roleName) {
         return userRepository.findByRole_RoleName(roleName).stream()
-                .map(this::mapToProfileResponse) // Tận dụng lại mapper DTO sẵn có giúp bảo mật giấu passwordHash
+                .map(this::mapToProfileResponse) // Reuse the safe DTO mapper so passwordHash is never exposed.
                 .collect(Collectors.toList());
     }
     

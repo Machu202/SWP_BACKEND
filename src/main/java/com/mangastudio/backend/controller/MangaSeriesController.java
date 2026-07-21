@@ -110,7 +110,7 @@ public class MangaSeriesController {
         return ResponseEntity.ok(mangaSeriesService.submitToEditorialBoard(id, userDetails.getId()));
     }
 
-    // [BỔ SUNG] Cập nhật Metadata của dự án
+    // Updates project metadata.
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('MANGAKA')")
     public ResponseEntity<MangaSeriesResponse> updateSeriesMetadata(
@@ -125,7 +125,7 @@ public class MangaSeriesController {
         return ResponseEntity.ok(response);
     }
 
-    // [BỔ SUNG] Xóa dự án nháp
+    // Deletes a draft project.
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('MANGAKA')")
     public ResponseEntity<String> deleteSeries(
@@ -145,7 +145,7 @@ public class MangaSeriesController {
     public ResponseEntity<MangaSeries> handleAdminDecision(
             @PathVariable Long id,
             @RequestParam Boolean isApproved,
-            @RequestParam(required = false) Long tantouId // required = false để không bắt buộc nếu Admin muốn từ chối (Reject)
+            @RequestParam(required = false) Long tantouId // Optional when the Admin rejects the series.
     ) {
         MangaSeries updatedSeries = mangaSeriesService.handleAdminDecision(id, isApproved, tantouId);
         return ResponseEntity.ok(updatedSeries);

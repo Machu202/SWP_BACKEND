@@ -6,7 +6,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.cache.annotation.EnableCaching;
 
 @SpringBootApplication
-@EnableScheduling // Bắt buộc phải có dòng này để kích hoạt các job chạy ngầm như xả đệm Telemetry
+@EnableScheduling // Enables background jobs such as telemetry-buffer flushing.
 @EnableCaching
 public class BackendApplication {
 

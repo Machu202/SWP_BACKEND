@@ -13,7 +13,7 @@ public class DateUtils {
         return dateTime.format(formatter);
     }
     
-    // Kiểm tra xem thời gian có bị trễ hạn (overdue) không
+    // Returns whether the specified time is overdue.
     public static boolean isOverdue(LocalDateTime deadline) {
         if (deadline == null) return false;
         return LocalDateTime.now().isAfter(deadline);

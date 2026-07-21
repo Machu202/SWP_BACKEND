@@ -4,10 +4,12 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.mangastudio.backend.entity.Chapter;
 import com.mangastudio.backend.entity.Page;
-import com.mangastudio.backend.entity.PageVersion; // <-- Thêm
+import com.mangastudio.backend.entity.PageVersion;
+import com.mangastudio.backend.entity.SystemParameter;
 import com.mangastudio.backend.repository.ChapterRepository;
 import com.mangastudio.backend.repository.PageRepository;
-import com.mangastudio.backend.repository.PageVersionRepository; // <-- Thêm
+import com.mangastudio.backend.repository.PageVersionRepository;
+import com.mangastudio.backend.repository.SystemParameterRepository;
 import com.mangastudio.backend.service.PageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,7 +18,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.LocalDateTime; // <-- Thêm
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -24,15 +26,18 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PageServiceImpl implements PageService {
 
+    private static final String MAX_PAGES_PER_CHAPTER = "MAX_PAGES_PER_CHAPTER";
+
     private final PageRepository pageRepository;
     private final ChapterRepository chapterRepository;
     private final Cloudinary cloudinary;
-    private final PageVersionRepository pageVersionRepository; // Tiêm kho chứa lịch sử vào
+    private final PageVersionRepository pageVersionRepository;
+    private final SystemParameterRepository systemParameterRepository;
 
     @Override
     @Transactional
     public Page addPageToChapter(Long chapterId, Integer pageNumber, MultipartFile file, Long currentUserId) {
-        Chapter chapter = chapterRepository.findById(chapterId)
+        Chapter chapter = chapterRepository.findByIdForPageUpload(chapterId)
                 .orElseThrow(() -> new RuntimeException("Error: Chapter not found"));
         if (!chapter.getMangaSeries().getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to modify this chapter");
@@ -43,6 +48,7 @@ public class PageServiceImpl implements PageService {
         if (pageRepository.existsByChapterIdAndPageNumber(chapterId, pageNumber)) {
             throw new RuntimeException("Page number is unique");
         }
+        enforceConfiguredPageLimit(chapterId);
 
         try {
             Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
@@ -58,7 +64,7 @@ public class PageServiceImpl implements PageService {
                     .build();
             Page savedPage = pageRepository.saveAndFlush(page);
 
-            // [FE-43] Tạo mốc lịch sử Version 1 khi upload lần đầu
+            // [FE-43] Archive version 1 when the page is uploaded for the first time.
             saveVersionSnapshot(savedPage, fileUrl, 1);
 
             return savedPage;
@@ -79,18 +85,18 @@ public class PageServiceImpl implements PageService {
         }
 
         try {
-            // 1. Upload ảnh mới đè lên Cloudinary
+            // 1. Upload the replacement image to Cloudinary.
             Map<?, ?> uploadResult = cloudinary.uploader().upload(newFile.getBytes(), ObjectUtils.asMap(
                 "resource_type", "auto",
                 "folder", "mangastudio_pages"
             ));
             String newFileUrl = uploadResult.get("secure_url").toString();
 
-            // 2. Cập nhật ảnh mới cho Page chính
+            // 2. Update the current image on the page.
             page.setImageUrl(newFileUrl);
             Page updatedPage = pageRepository.save(page);
 
-            // 3. [FE-43] Đếm số phiên bản hiện có trong DB và tạo Snapshot mới (Version 2, 3...)
+            // 3. [FE-43] Count archived versions and create the next snapshot.
             int currentVersionCount = pageVersionRepository.countByPageId(pageId);
             saveVersionSnapshot(updatedPage, newFileUrl, currentVersionCount + 1);
 
@@ -119,7 +125,30 @@ public class PageServiceImpl implements PageService {
         pageRepository.delete(page);
     }
 
-    // --- Hàm trợ lý ghi vết Version ---
+    private void enforceConfiguredPageLimit(Long chapterId) {
+        SystemParameter parameter = systemParameterRepository
+                .findByParamKeyIgnoreCase(MAX_PAGES_PER_CHAPTER)
+                .orElse(null);
+        if (parameter == null) return;
+
+        int maximum;
+        try {
+            // Parse legacy rows too; all new Admin writes are constrained to INTEGER by the settings service.
+            maximum = Integer.parseInt(parameter.getParamValue().trim());
+            if (maximum < 1) throw new NumberFormatException("value is not positive");
+        } catch (RuntimeException exception) {
+            throw new RuntimeException(
+                    "Error: MAX_PAGES_PER_CHAPTER must be configured as a positive INTEGER.", exception);
+        }
+
+        long currentPageCount = pageRepository.countByChapterId(chapterId);
+        if (currentPageCount >= maximum) {
+            throw new RuntimeException(
+                    "Error: This chapter has reached the Admin limit of " + maximum + " pages.");
+        }
+    }
+
+    // Archives one immutable page-version snapshot.
     private void saveVersionSnapshot(Page page, String imgUrl, int verNum) {
         PageVersion version = PageVersion.builder()
                 .page(page)

@@ -27,7 +27,7 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
         MangaSeries series = mangaSeriesRepository.findById(request.getSeriesId())
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
 
-        // Khóa bảo mật: Chỉ Mangaka của bộ truyện mới được tạo lịch
+        // Security check: only the series Mangaka can create its schedule.
         if (!series.getMangaka().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to schedule this series");
         }
@@ -46,7 +46,7 @@ public class PublishingScheduleServiceImpl implements PublishingScheduleService 
 
     @Override
     public List<PublishingSchedule> getSchedulesBySeries(Long seriesId) {
-        // Kiểm tra xem truyện có tồn tại không
+        // Verify that the manga series exists.
         mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
                 

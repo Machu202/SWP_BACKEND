@@ -29,13 +29,13 @@ public class ResourceController {
         return ResponseEntity.ok(savedResource);
     }
 
-    // [BỔ SUNG] Lấy toàn bộ tài nguyên
+    // Returns every resource.
     @GetMapping
     public ResponseEntity<List<Resource>> getAllResources() {
         return ResponseEntity.ok(resourceService.getAllResources());
     }
 
-    // [BỔ SUNG] Xóa tài nguyên (Sẽ xóa cả trên Cloud)
+    // Deletes a resource from both the database and cloud storage.
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteResource(
             @PathVariable Long id,

@@ -20,19 +20,19 @@ public class SystemParameterController {
 
     private final SystemParameterService parameterService;
 
-    // Lấy toàn bộ cấu hình hệ thống
+    // Returns every system parameter.
     @GetMapping
     public ResponseEntity<List<SystemParameter>> getAllParameters() {
         return ResponseEntity.ok(parameterService.getAllParameters());
     }
 
-    // Lấy một cấu hình cụ thể theo Key
+    // Returns one system parameter by key.
     @GetMapping("/{key}")
     public ResponseEntity<SystemParameter> getParameterByKey(@PathVariable String key) {
         return ResponseEntity.ok(parameterService.getParameterByKey(key));
     }
 
-    // [BỔ SUNG] Tạo mới cấu hình (Chỉ Admin)
+    // Creates a system parameter (Admin only).
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SystemParameter> createParameter(
@@ -45,7 +45,7 @@ public class SystemParameterController {
         return ResponseEntity.status(HttpStatus.CREATED).body(newParam);
     }
 
-    // Chỉ Admin mới có quyền cập nhật tham số hệ thống
+    // Updates a system parameter (Admin only).
     @PutMapping("/{key}")
     @PreAuthorize("hasRole('ADMIN')") 
     public ResponseEntity<SystemParameter> updateParameter(
@@ -57,7 +57,7 @@ public class SystemParameterController {
         return ResponseEntity.ok(parameterService.updateParameter(key, value, type, userDetails.getId()));
     }
 
-    // [BỔ SUNG] Xóa cấu hình (Chỉ Admin)
+    // Deletes a system parameter (Admin only).
     @DeleteMapping("/{key}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> deleteParameter(@PathVariable String key, Authentication authentication) {

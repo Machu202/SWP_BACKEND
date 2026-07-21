@@ -24,7 +24,7 @@ public class DeadlineEventController {
         @PathVariable Long seriesId,
         @RequestParam String eventName,
         @RequestParam String deadlineDateStr,
-        @RequestParam(defaultValue = "NORMAL") String warningLevel, // <-- Thêm dòng này
+        @RequestParam(defaultValue = "NORMAL") String warningLevel,
         Authentication authentication) {
 
     UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();

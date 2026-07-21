@@ -26,6 +26,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class SystemParameterServiceImpl implements SystemParameterService {
 
+    private static final String MAX_PAGES_PER_CHAPTER = "MAX_PAGES_PER_CHAPTER";
+
     private static final Set<String> SUPPORTED_TYPES = Set.of(
             "STRING", "INTEGER", "DECIMAL", "BOOLEAN", "JSON"
     );
@@ -61,7 +63,7 @@ public class SystemParameterServiceImpl implements SystemParameterService {
         User admin = requireAdmin(currentUserId);
         String normalizedKey = normalizeKey(key);
         String normalizedType = normalizeType(type, "STRING");
-        String normalizedValue = validateValue(value, normalizedType);
+        String normalizedValue = validateValue(normalizedKey, value, normalizedType);
 
         if (parameterRepository.findByParamKeyIgnoreCase(normalizedKey).isPresent()) {
             throw new RuntimeException("Error: Parameter key already exists: " + normalizedKey);
@@ -94,7 +96,7 @@ public class SystemParameterServiceImpl implements SystemParameterService {
                 .orElseThrow(() -> new RuntimeException("Error: Parameter key not found: " + normalizedKey));
 
         String normalizedType = normalizeType(type, parameter.getParamType());
-        String normalizedValue = validateValue(value, normalizedType);
+        String normalizedValue = validateValue(normalizedKey, value, normalizedType);
         String oldValue = parameter.getParamValue();
         LocalDateTime changedAt = LocalDateTime.now();
 
@@ -156,7 +158,7 @@ public class SystemParameterServiceImpl implements SystemParameterService {
         return normalized;
     }
 
-    private String validateValue(String value, String type) {
+    private String validateValue(String key, String value, String type) {
         String normalized = value == null ? "" : value.trim();
         if (normalized.isEmpty()) {
             throw new RuntimeException("Error: Parameter value is required.");
@@ -179,6 +181,18 @@ public class SystemParameterServiceImpl implements SystemParameterService {
             }
         } catch (Exception exception) {
             throw new RuntimeException("Error: Value '" + normalized + "' is not valid for type " + type + ".");
+        }
+        if (MAX_PAGES_PER_CHAPTER.equals(key)) {
+            if (!"INTEGER".equals(type)) {
+                throw new RuntimeException("Error: MAX_PAGES_PER_CHAPTER must use the INTEGER type.");
+            }
+            try {
+                if (Long.parseLong(normalized) < 1) {
+                    throw new RuntimeException("Error: MAX_PAGES_PER_CHAPTER must be at least 1.");
+                }
+            } catch (NumberFormatException exception) {
+                throw new RuntimeException("Error: MAX_PAGES_PER_CHAPTER must be a positive integer.");
+            }
         }
         return normalized;
     }

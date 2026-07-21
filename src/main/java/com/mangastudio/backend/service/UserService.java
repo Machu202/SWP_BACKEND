@@ -8,7 +8,7 @@ public interface UserService {
     UserProfileResponse getUserProfile(String username);
     UserProfileResponse updateUserProfile(String username, UserProfileUpdateRequest updateRequest);
     
-    // [BỔ SUNG FE-03] Quyền của Admin
+    // [FE-03] Admin-only operations.
     List<UserProfileResponse> getAllUsers();
     UserProfileResponse toggleUserLock(Long userId, boolean isActive);
     UserProfileResponse assignRole(Long userId, String roleName);

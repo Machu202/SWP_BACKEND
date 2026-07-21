@@ -5,6 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface TantouFeedbackRepository extends JpaRepository<TantouFeedback, Long> {
-    // Lấy toàn bộ feedback của Biên tập viên trên một trang truyện
+    // Returns all Tantou Editor feedback for a manga page.
     List<TantouFeedback> findByPageId(Long pageId);
 }

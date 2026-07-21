@@ -18,7 +18,7 @@ public class MangaSeries {
     private User mangaka;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tantou_id") // Có thể null nếu dự án mới chưa được phân công Tantou
+    @JoinColumn(name = "tantou_id") // Null until a Tantou Editor is assigned to a new project.
     private User tantou;
     public User getTantou() { return tantou; }
     public void setTantou(User tantou) { this.tantou = tantou; }

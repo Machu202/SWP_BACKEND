@@ -7,7 +7,7 @@ import java.util.List;
 public interface ResourceService {
     Resource uploadFile(MultipartFile file, Long uploaderId, String resourceType);
     
-    // [BỔ SUNG FE-45]
+    // [FE-45] Resource-library operations.
     List<Resource> getAllResources();
     void deleteResource(Long resourceId, Long currentUserId);
 }

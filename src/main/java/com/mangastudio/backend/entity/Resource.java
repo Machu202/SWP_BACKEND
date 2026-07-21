@@ -18,7 +18,7 @@ public class Resource {
     @Column(name = "file_url", nullable = false, length = 255)
     private String fileUrl;
 
-    // [BỔ SUNG] Lưu ID của file trên Cloudinary để sau này gọi API xóa
+    // Stores the Cloudinary asset ID used by the deletion API.
     @Column(name = "public_id", length = 255)
     private String publicId;
 

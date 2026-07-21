@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class ErrorResponse {
     
-    private int status;           // Mã HTTP (VD: 400, 404, 500)
-    private String message;       // Thông điệp lỗi chi tiết
-    private LocalDateTime timestamp; // Thời điểm xảy ra lỗi
+    private int status;           // HTTP status code (for example, 400, 404, or 500)
+    private String message;       // Detailed error message
+    private LocalDateTime timestamp; // Time when the error occurred
 }

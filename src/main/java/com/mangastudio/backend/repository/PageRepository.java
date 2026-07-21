@@ -7,8 +7,10 @@ import java.util.List;
 
 public interface PageRepository extends JpaRepository<Page, Long> {
     
-    // Lấy toàn bộ trang của một chapter, sắp xếp theo thứ tự trang tăng dần
+    // Returns every page in a chapter, sorted by ascending page number.
     List<Page> findByChapterIdOrderByPageNumberAsc(Long chapterId);
 
     boolean existsByChapterIdAndPageNumber(Long chapterId, Integer pageNumber);
+
+    long countByChapterId(Long chapterId);
 }

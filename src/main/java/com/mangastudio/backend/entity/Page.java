@@ -11,7 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 @Table(name = "pages", uniqueConstraints = @UniqueConstraint(
         name = "uk_pages_chapter_page_number",
         columnNames = {"chapter_id", "page_number"}
-)) // Mỗi số trang chỉ xuất hiện một lần trong cùng chapter.
+)) // A page number can appear only once within a chapter.
 @EntityListeners(com.mangastudio.backend.listener.PageVersioningListener.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Page {
@@ -34,7 +34,7 @@ public class Page {
     
     private Double height;
 
-    // BỔ SUNG: Mối quan hệ để lấy ra toàn bộ lịch sử của trang này
+    // Relationship used to retrieve the page's complete version history.
     @OneToMany(mappedBy = "page", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<PageVersion> versions;

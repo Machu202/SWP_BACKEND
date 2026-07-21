@@ -9,6 +9,6 @@ public interface DeadlineEventService {
     List<DeadlineEvent> getDeadlinesBySeries(Long seriesId);
     void deleteDeadline(Long eventId, Long mangakaId);
     
-    // Hàm này sẽ được Spring Boot tự động gọi ngầm (Cron Job)
+    // Spring Boot invokes this scheduled job automatically.
     void scanAndWarnDeadlines(); 
 }

@@ -73,11 +73,43 @@ class SystemParameterHardeningTests {
                 .thenReturn(Optional.empty());
 
         RuntimeException error = assertThrows(RuntimeException.class, () ->
-                service.createParameter("DEFAULT_PAGINATION_SIZE", "Hai muoi", "INTEGER", 1L));
+                service.createParameter("DEFAULT_PAGINATION_SIZE", "twenty", "INTEGER", 1L));
 
         assertTrue(error.getMessage().contains("not valid for type INTEGER"));
         verify(parameterRepository, never()).save(any());
         verify(auditRepository, never()).save(any());
+    }
+
+    @Test
+    void acceptsPositiveMaxPagesPerChapterLimit() {
+        when(parameterRepository.findByParamKeyIgnoreCase("MAX_PAGES_PER_CHAPTER"))
+                .thenReturn(Optional.empty());
+        when(parameterRepository.save(any(SystemParameter.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        SystemParameter saved = service.createParameter(
+                "MAX_PAGES_PER_CHAPTER", "80", "INTEGER", 1L);
+
+        assertEquals("80", saved.getParamValue());
+        assertEquals("INTEGER", saved.getParamType());
+    }
+
+    @Test
+    void rejectsNonIntegerMaxPagesPerChapterLimit() {
+        RuntimeException error = assertThrows(RuntimeException.class, () ->
+                service.createParameter("MAX_PAGES_PER_CHAPTER", "80", "STRING", 1L));
+
+        assertEquals("Error: MAX_PAGES_PER_CHAPTER must use the INTEGER type.", error.getMessage());
+        verify(parameterRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsNonPositiveMaxPagesPerChapterLimit() {
+        RuntimeException error = assertThrows(RuntimeException.class, () ->
+                service.createParameter("MAX_PAGES_PER_CHAPTER", "0", "INTEGER", 1L));
+
+        assertEquals("Error: MAX_PAGES_PER_CHAPTER must be at least 1.", error.getMessage());
+        verify(parameterRepository, never()).save(any());
     }
 
     @Test

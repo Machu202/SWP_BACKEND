@@ -15,14 +15,14 @@ public class TelemetryController {
     private final TelemetryBufferService telemetryBufferService;
     private final TelemetryAnalyticsRepository telemetryAnalyticsRepository;
 
-    // Frontend sẽ gọi API này ngầm (không cần token) mỗi khi người đọc cuộn tới một chapter
+    // The frontend calls this public endpoint when a reader reaches a chapter.
     @PostMapping("/chapters/{chapterId}/view")
     public ResponseEntity<String> recordView(@PathVariable Long chapterId) {
         telemetryBufferService.recordChapterView(chapterId);
         return ResponseEntity.ok("View recorded in buffer.");
     }
 
-    // Mangaka hoặc Admin xem thống kê tổng của một bộ truyện
+    // Allows the Mangaka or Admin to view aggregate series statistics.
     @GetMapping("/series/{seriesId}")
     public ResponseEntity<TelemetryAnalytics> getAnalytics(@PathVariable Long seriesId) {
         TelemetryAnalytics analytics = telemetryAnalyticsRepository.findByMangaSeriesId(seriesId)

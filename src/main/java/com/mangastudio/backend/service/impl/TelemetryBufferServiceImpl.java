@@ -25,7 +25,7 @@ public class TelemetryBufferServiceImpl implements TelemetryBufferService {
     private final MangaSeriesRepository mangaSeriesRepository;
     private final TelemetryAnalyticsRepository telemetryRepository;
 
-    // L1 RAM Buffer: Lưu trữ tạm thời lượt xem theo ID của Chapter
+    // L1 memory buffer: temporarily stores views by chapter ID.
     private final Map<Long, AtomicLong> viewBuffer = new ConcurrentHashMap<>();
 
     @Override
@@ -45,11 +45,11 @@ public class TelemetryBufferServiceImpl implements TelemetryBufferService {
 
     @Override
     public void recordChapterView(Long chapterId) {
-        // Tăng lượt xem trong RAM lên 1, cực kỳ nhanh, không đụng tới DB
+        // Increment the in-memory view count without writing to the database.
         viewBuffer.computeIfAbsent(chapterId, k -> new AtomicLong(0)).incrementAndGet();
     }
 
-    // Cron Job: Cứ 3 phút (180,000 ms) xả đệm một lần
+    // Scheduled job: flush the buffer every three minutes (180,000 ms).
     @Override
     @Scheduled(fixedRate = 180000)
     @Transactional
@@ -57,27 +57,27 @@ public class TelemetryBufferServiceImpl implements TelemetryBufferService {
         if (viewBuffer.isEmpty()) return;
 
         viewBuffer.forEach((chapterId, count) -> {
-            // Lấy ra số lượt xem hiện tại và reset về 0 trong RAM
+            // Read the current view count and reset it to zero in memory.
             long viewsToFlush = count.getAndSet(0);
             
             if (viewsToFlush > 0) {
                 try {
-                    // 1. Lấy thông tin Chapter để dò ra Manga Series
+                    // 1. Resolve the manga series through the chapter.
                     Chapter chapter = chapterRepository.findById(chapterId).orElse(null);
                     if (chapter == null) return;
                     
                     MangaSeries series = chapter.getMangaSeries();
 
-                    // 2. Lấy bản ghi Telemetry cũ của truyện, nếu chưa có thì tạo mới
+                    // 2. Update the existing telemetry row, or create one if needed.
                     TelemetryAnalytics analytics = telemetryRepository.findByMangaSeriesId(series.getId())
                             .orElse(TelemetryAnalytics.builder()
                                     .mangaSeries(series)
-                                    .recordedBy(series.getMangaka()) // Lấy Mangaka làm người sở hữu record
+                                    .recordedBy(series.getMangaka()) // The Mangaka owns this telemetry record.
                                     .readerVotes(0)
                                     .views(0)
                                     .build());
 
-                    // 3. Cộng dồn lượt xem
+                    // 3. Accumulate the views.
                     analytics.setViews(analytics.getViews() + (int) viewsToFlush);
                     analytics.setCalculatedAt(LocalDateTime.now());
 
@@ -86,7 +86,7 @@ public class TelemetryBufferServiceImpl implements TelemetryBufferService {
                     System.out.println(">>> [TELEMETRY FLUSH] Saved " + viewsToFlush + " views for Series: " + series.getTitle());
                 } catch (Exception e) {
                     System.err.println(">>> [TELEMETRY ERROR] Failed to flush views for chapter " + chapterId + ": " + e.getMessage());
-                    // Bồi hoàn lại lượt xem vào RAM để lần sau flush tiếp nếu DB bị lỗi mạng
+                    // Restore views to memory so a later flush can retry after a database failure.
                     viewBuffer.get(chapterId).addAndGet(viewsToFlush);
                 }
             }

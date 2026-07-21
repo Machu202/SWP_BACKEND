@@ -20,7 +20,7 @@ public class UserController {
 
     private final UserService userService;
 
-    // --- CÁC API DÀNH CHO USER ĐANG ĐĂNG NHẬP ---
+    // --- ENDPOINTS FOR AUTHENTICATED USERS ---
 
     @GetMapping("/profile")
     public ResponseEntity<UserProfileResponse> getMyProfile(Authentication authentication) {
@@ -39,7 +39,7 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    // --- CÁC API ĐẶC QUYỀN DÀNH CHO ADMIN (FE-03) ---
+    // --- ADMIN-ONLY ENDPOINTS (FE-03) ---
 
     @GetMapping("/all")
     @PreAuthorize("hasRole('ADMIN')")
@@ -47,7 +47,7 @@ public class UserController {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    // API Khóa hoặc Mở khóa tài khoản (Truyền tham số isActive=true/false)
+    // Locks or unlocks an account with isActive=true/false.
     @PatchMapping("/{id}/lock")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserProfileResponse> toggleUserLock(
@@ -57,7 +57,7 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    // API Gán quyền mới cho User (Truyền tham số roleName="Mangaka", "Assistant", "Admin"...)
+    // Assigns a role with roleName="Mangaka", "Assistant", "Admin", and so on.
     @PatchMapping("/{id}/role")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserProfileResponse> assignRole(

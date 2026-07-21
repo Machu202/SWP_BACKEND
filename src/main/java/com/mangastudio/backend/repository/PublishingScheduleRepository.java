@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface PublishingScheduleRepository extends JpaRepository<PublishingSchedule, Long> {
     
-    // Tìm lịch phát hành theo ID truyện, sắp xếp ngày tháng tăng dần (gần nhất lên trước)
+    // Finds a series publication schedule, sorted by the nearest date first.
     List<PublishingSchedule> findByMangaSeriesIdOrderByPublishDateAsc(Long seriesId);
 
     @Query("SELECT schedule FROM PublishingSchedule schedule JOIN FETCH schedule.mangaSeries "

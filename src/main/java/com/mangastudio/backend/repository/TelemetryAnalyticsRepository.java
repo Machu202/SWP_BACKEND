@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface TelemetryAnalyticsRepository extends JpaRepository<TelemetryAnalytics, Long> {
-    // Tìm bản ghi thống kê của một bộ truyện
+    // Finds the telemetry record for a manga series.
     Optional<TelemetryAnalytics> findByMangaSeriesId(Long seriesId);
 
     void deleteByMangaSeriesId(Long seriesId);

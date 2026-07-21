@@ -19,7 +19,7 @@ public class TelemetryAnalytics {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recorded_by", nullable = false)
-    private User recordedBy; // Hội đồng biên tập
+    private User recordedBy; // Record owner
 
     @Column(name = "reader_votes")
     private Integer readerVotes;

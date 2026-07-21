@@ -23,7 +23,7 @@ public class BoardVoteController {
         this.boardVoteService = boardVoteService;
     }
 
-    // API 1: Hội đồng biên tập thực hiện bỏ phiếu (Truyền tham số isApproved = true/false)
+    // Endpoint 1: an Editorial Board member votes with isApproved=true/false.
     @PostMapping("/series/{seriesId}")
     @PreAuthorize("hasAnyAuthority('ROLE_EDITORIAL_BOARD', 'ROLE_EDITORIAL BOARD', 'ROLE_ADMIN')")
     public ResponseEntity<BoardVote> castVote(
@@ -36,7 +36,7 @@ public class BoardVoteController {
         return ResponseEntity.ok(vote);
     }
 
-    // API 2: Admin lấy báo cáo thống kê phiếu bầu
+    // Endpoint 2: the Admin retrieves vote statistics.
     @GetMapping("/series/{seriesId}/summary")
     @PreAuthorize("hasAnyAuthority('ROLE_EDITORIAL_BOARD', 'ROLE_EDITORIAL BOARD', 'ROLE_ADMIN')")
     public ResponseEntity<BoardVoteSummaryResponse> getVoteSummary(@PathVariable Long seriesId) {

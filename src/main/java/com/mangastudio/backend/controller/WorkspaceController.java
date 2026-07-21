@@ -64,7 +64,7 @@ public class WorkspaceController {
         Task assignedTask = workspaceService.assignTaskToHitbox(hitboxId, mangakaId, taskRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(assignedTask);
     }
-    // [FE-33] API "All-in-one" để Frontend khởi tạo giao diện vẽ Canvas
+    // [FE-33] All-in-one endpoint used to initialize the Canvas UI.
     @GetMapping("/pages/{pageId}/canvas-init")
     public ResponseEntity<CanvasInitResponse> initCanvas(@PathVariable Long pageId) {
         return ResponseEntity.ok(workspaceService.getCanvasInitData(pageId));

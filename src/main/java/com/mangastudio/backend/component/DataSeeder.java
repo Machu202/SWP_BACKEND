@@ -17,7 +17,7 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Kiểm tra xem database đã có Role chưa
+        // Seed roles only when the database does not already contain them.
         if (roleRepository.count() == 0) {
             System.out.println(">>> Initializing Seed Data for the system...");
             

@@ -179,17 +179,17 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Error: Username is already taken!");
         }
         
-        // 1. Chỉ check trùng Email nếu người dùng CÓ NHẬP email
+        // 1. Check email uniqueness only when an email was provided.
         String email = request.getEmail();
         if (email != null && !email.trim().isEmpty()) {
             if (userRepository.existsByEmail(email)) {
                 throw new RuntimeException("Error: Email is already in use!");
             }
         } else {
-            email = null; // Chuẩn hóa thành null để lưu vào DB
+            email = null; // Normalize a blank email to null for storage.
         }
 
-        // 2. Chỉ check trùng Số điện thoại nếu người dùng CÓ NHẬP số điện thoại
+        // 2. Check phone-number uniqueness only when a phone number was provided.
         String phone = request.getPhoneNumber();
         if (phone != null && !phone.trim().isEmpty()) {
             if (userRepository.existsByPhoneNumber(phone)) {
@@ -204,8 +204,8 @@ public class AuthServiceImpl implements AuthService {
 
         User user = User.builder()
                 .username(request.getUsername())
-                .email(email) // Sẽ truyền null nếu user chỉ nhập Username
-                .phoneNumber(phone) // Lưu số điện thoại
+                .email(email) // Null when the user registers with only a username.
+                .phoneNumber(phone) // Store the optional phone number.
                 .passwordHash(encoder.encode(request.getPassword()))
                 .role(userRole)
                 .isActive(true)
@@ -244,19 +244,19 @@ public class AuthServiceImpl implements AuthService {
                 throw new RuntimeException("Error: Google ID token is required.");
             }
 
-            // 1. Khởi tạo cỗ máy xác thực của Google
+            // 1. Initialize the Google token verifier.
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(),
                     GsonFactory.getDefaultInstance())
                     .setAudience(Collections.singletonList(googleClientId.trim()))
                     .build();
 
-            // 2. Xác minh Token từ Frontend gửi lên
+            // 2. Verify the token supplied by the frontend.
             GoogleIdToken idToken = verifier.verify(request.getToken().trim());
             if (idToken == null) {
                 throw new RuntimeException("Error: Invalid or expired Google ID token.");
             }
 
-            // 3. Rút trích thông tin người dùng từ Google
+            // 3. Extract the Google user details.
             GoogleIdToken.Payload payload = idToken.getPayload();
             String email = payload.getEmail() == null ? "" : payload.getEmail().trim();
             String name = (String) payload.get("name");
@@ -264,26 +264,25 @@ public class AuthServiceImpl implements AuthService {
                 throw new RuntimeException("Error: Google did not provide a verified email address.");
             }
 
-            // 4. Kiểm tra xem người dùng đã có tài khoản trong hệ thống chưa
+            // 4. Check whether the user already has an account.
             Optional<User> userOptional = userRepository.findByEmailIgnoreCase(email);
             User user;
 
             if (userOptional.isPresent()) {
                 user = userOptional.get();
-                // Bắt buộc kiểm tra xem tài khoản có bị Admin khóa không (FE-03)
+                // Enforce an Admin account lock before signing the user in. [FE-03]
                 if (Boolean.FALSE.equals(user.getIsActive())) {
                     throw new RuntimeException("Error: Your account has been locked. Please contact Admin.");
                 }
             } else {
-                // 5. Nếu chưa có, tự động đăng ký tài khoản mới cho họ
+                // 5. Automatically register a new account when none exists.
                 Role defaultRole = roleRepository.findByRoleName("Mangaka")
                         .orElseThrow(() -> new RuntimeException("Error: Default role not found."));
 
-                // Tạo một mật khẩu ngẫu nhiên siêu khó để bảo vệ tài khoản (họ sẽ luôn đăng
-                // nhập qua Google)
+                // Create a strong random password because this account signs in through Google.
                 String randomPassword = UUID.randomUUID().toString();
 
-                // Cắt tên email ra làm username mặc định (Ví dụ: "ducky@gmail.com" ->
+                // Use the email prefix as the default username (for example, "ducky@gmail.com" ->
                 // "ducky_abcd")
                 String baseUsername = createUniqueGoogleUsername(email);
 
@@ -298,7 +297,7 @@ public class AuthServiceImpl implements AuthService {
                 user = userRepository.save(user);
             }
 
-            // 6. Gắn quyền và cấp phát JWT cho Frontend truy cập
+            // 6. Attach the role and issue a JWT for the frontend.
             UserDetailsImpl userDetails = UserDetailsImpl.build(user);
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     userDetails, null, userDetails.getAuthorities());

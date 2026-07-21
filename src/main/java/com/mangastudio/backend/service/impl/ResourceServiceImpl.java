@@ -37,12 +37,12 @@ public class ResourceServiceImpl implements ResourceService {
             ));
 
             String secureFileUrl = uploadResult.get("secure_url").toString();
-            String publicId = uploadResult.get("public_id").toString(); // Lấy ID định danh trên mây
+            String publicId = uploadResult.get("public_id").toString(); // Cloudinary asset identifier
 
             Resource resource = Resource.builder()
                     .resourceType(resourceType)
                     .fileUrl(secureFileUrl)
-                    .publicId(publicId) // Lưu vào SQL
+                    .publicId(publicId) // Store the identifier in SQL.
                     .uploadedBy(uploader)
                     .build();
 
@@ -64,18 +64,18 @@ public class ResourceServiceImpl implements ResourceService {
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new RuntimeException("Error: Resource not found"));
 
-        // Khóa bảo mật: Chỉ người tải file lên mới được quyền xóa
+        // Security check: only the uploader can delete this resource.
         if (!resource.getUploadedBy().getId().equals(currentUserId)) {
             throw new RuntimeException("Error: You do not have permission to delete this resource");
         }
 
         try {
-            // 1. Phá hủy file vật lý trên máy chủ Cloudinary
+            // 1. Delete the physical asset from Cloudinary.
             if (resource.getPublicId() != null) {
                 cloudinary.uploader().destroy(resource.getPublicId(), ObjectUtils.emptyMap());
             }
             
-            // 2. Xóa bản ghi trong Database của chúng ta
+            // 2. Delete the database record.
             resourceRepository.delete(resource);
 
         } catch (IOException ex) {

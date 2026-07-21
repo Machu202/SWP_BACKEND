@@ -7,11 +7,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface DeadlineEventRepository extends JpaRepository<DeadlineEvent, Long> {
-    // Lấy danh sách deadline của một dự án
+    // Returns deadlines for a project.
     List<DeadlineEvent> findByMangaSeriesIdOrderByDeadlineDateAsc(Long seriesId);
 
     void deleteByMangaSeriesId(Long seriesId);
     
-    // Câu query thần thánh của Cron Job: Tìm các deadline ĐÃ TRỄ HẠN nhưng CHƯA ĐƯỢC CẢNH BÁO
+    // Scheduled-job query: finds overdue deadlines that have not been reported.
     List<DeadlineEvent> findByWarningLevelNotAndDeadlineDateBefore(String warningLevel, LocalDateTime currentTime);
 }

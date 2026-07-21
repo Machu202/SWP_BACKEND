@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public interface BoardVoteRepository extends JpaRepository<BoardVote, Long> {
     
-    // Tìm lá phiếu của một thành viên cụ thể trong một dự án
+    // Finds a specific member's vote for a project.
     Optional<BoardVote> findByMangaSeriesIdAndBoardMemberId(Long seriesId, Long boardMemberId);
 
     @Query("SELECT vote FROM BoardVote vote JOIN FETCH vote.mangaSeries "
@@ -20,10 +20,10 @@ public interface BoardVoteRepository extends JpaRepository<BoardVote, Long> {
             + "ORDER BY vote.createdAt DESC, vote.id DESC")
     List<BoardVote> findAllCurrentVotesWithDetails();
     
-    // Đếm tổng số phiếu của dự án
+    // Counts every vote for a project.
     long countByMangaSeriesId(Long seriesId);
     
-    // Đếm số phiếu theo trạng thái (Đồng ý / Từ chối)
+    // Counts votes by decision (approved or rejected).
     long countByMangaSeriesIdAndIsApproved(Long seriesId, Boolean isApproved);
 
     // Clear stale votes before a rejected series enters a new Board review cycle.

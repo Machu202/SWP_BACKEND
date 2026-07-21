@@ -15,6 +15,6 @@ public interface AuthService {
     
     MessageResponse registerUser(RegisterRequest registerRequest);
     
-    // [BỔ SUNG FE-01] Xử lý đăng nhập bằng Google
+    // [FE-01] Handles Google sign-in.
     JwtResponse googleLogin(com.mangastudio.backend.dto.request.GoogleLoginRequest request);
 }

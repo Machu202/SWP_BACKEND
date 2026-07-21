@@ -27,7 +27,7 @@ public class TaskController {
         this.taskService = taskService;
     }
 
-    // [FE-47] Lọc công việc của bản thân theo Role (Tự động nhận diện qua Token)
+    // [FE-47] Returns the authenticated user's tasks according to their role.
     @GetMapping("/my-tasks")
     public ResponseEntity<List<Map<String, Object>>> getMyTasks(Authentication authentication) {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
@@ -49,7 +49,7 @@ public class TaskController {
         return ResponseEntity.ok(toTaskResponses(tasks));
     }
 
-    // Mangaka gán Assistant vào Task
+    // Allows a Mangaka to assign an Assistant to a task.
     @PatchMapping("/{taskId}/assign")
     public ResponseEntity<Map<String, Object>> assignAssistant(
             @PathVariable Long taskId,
@@ -61,7 +61,7 @@ public class TaskController {
         return ResponseEntity.ok(toTaskResponse(updated));
     }
 
-    // [FE-39] Kéo thả thẻ Task trên bảng Kanban
+    // [FE-39] Moves a task card on the Kanban board.
     @PatchMapping("/{taskId}/status")
     public ResponseEntity<Map<String, Object>> updateStatus(
             @PathVariable Long taskId,
@@ -94,7 +94,7 @@ public class TaskController {
         return ResponseEntity.ok(toTaskResponse(updated));
     }
 
-    // Assistant nộp bài (Truyền lên link ảnh đã lưu từ Cloudinary)
+    // Allows an Assistant to submit a Cloudinary image URL.
     @PatchMapping("/{taskId}/submit")
     public ResponseEntity<Map<String, Object>> submitWork(
             @PathVariable Long taskId,

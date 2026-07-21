@@ -70,9 +70,9 @@ public class SecurityConfig {
                         ).permitAll()
                         // Allow public access to Swagger UI documentation
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        // [BỔ SUNG FE-09] Mở cửa cho kết nối WebSocket Handshake
+                        // [FE-09] Allow WebSocket handshake requests.
                         .requestMatchers("/ws/**").permitAll()
-                        // BỔ SUNG DÒNG NÀY: Mở cửa tự do cho độc giả vào tăng View & xem thống kê!
+                        // Allow public readers to record views and access public statistics.
                         .requestMatchers("/api/v1/telemetry/**").permitAll()
                         // All other API requests must be authenticated with a valid JWT
                         .anyRequest().authenticated());

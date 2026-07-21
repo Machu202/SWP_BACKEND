@@ -53,7 +53,7 @@ public class ChapterController {
         return ResponseEntity.ok(chapterService.getTantouReviewQueue(userDetails.getId()));
     }
 
-    // [FE-30] API Cập nhật trạng thái
+    // [FE-30] Updates chapter status.
     @PatchMapping("/{id}/status")
     public ResponseEntity<ChapterResponse> updateChapterStatus(
             @PathVariable Long id,

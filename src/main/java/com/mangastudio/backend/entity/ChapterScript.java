@@ -13,7 +13,7 @@ public class ChapterScript {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Quan hệ 1-1: Mỗi Chapter chỉ có 1 Kịch bản
+    // One-to-one relationship: each chapter has one script.
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "chapter_id", nullable = false, unique = true)
     private Chapter chapter;

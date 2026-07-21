@@ -20,10 +20,10 @@ public interface MangaSeriesService {
     MangaSeriesResponse assignTantou(Long seriesId, Long currentUserId, Long tantouId);
     MangaSeriesResponse submitToEditorialBoard(Long seriesId, Long currentUserId);
     
-    // [BỔ SUNG] Cập nhật thông tin truyện và Xóa truyện
+    // Updates manga metadata and deletes a manga series.
     MangaSeriesResponse updateSeriesMetadata(Long seriesId, Long currentUserId, MangaSeriesUpdateRequest request);
     void deleteSeries(Long seriesId, Long currentUserId);
-    // [FE-17] Khai báo hàm Admin chốt duyệt cuối cùng
+    // [FE-17] Records the Admin's final decision.
     MangaSeriesResponse adminApproveSeries(Long seriesId, boolean isApproved);
     MangaSeries handleAdminDecision(Long seriesId, Boolean isApproved, Long tantouId);
 

@@ -8,10 +8,10 @@ import com.mangastudio.backend.entity.BoardVote;
 import java.util.List;
 
 public interface BoardVoteService {
-    // Hàm dành cho Hội đồng biên tập bỏ phiếu
+    // Allows an Editorial Board member to cast a vote.
     BoardVote castVote(Long seriesId, Long memberId, boolean isApproved);
     
-    // Hàm dành cho Admin lấy thống kê để quyết định
+    // Provides vote statistics for the Admin's final decision.
     BoardVoteSummaryResponse getVoteSummary(Long seriesId);
 
     List<BoardVoteHistoryResponse> getMyVoteHistory(Long memberId);

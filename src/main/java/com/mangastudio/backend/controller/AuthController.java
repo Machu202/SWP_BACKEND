@@ -67,7 +67,7 @@ public class AuthController {
         responseBody.put("role", role);
         responseBody.put("username", userDetails.getUsername());
         responseBody.put("email", userDetails.getEmail());
-        responseBody.put("message", "Đăng nhập thành công!");
+        responseBody.put("message", "Login successful!");
         return ResponseEntity.ok(responseBody);
     }
 

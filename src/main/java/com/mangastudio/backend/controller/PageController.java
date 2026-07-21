@@ -31,7 +31,7 @@ public class PageController {
         return ResponseEntity.status(HttpStatus.CREATED).body(savedPage);
     }
 
-    // [FE-43] Điểm gọi API để ghi đè trang cũ bằng hình ảnh mới
+    // [FE-43] Replaces the current page image and archives a version snapshot.
     @PutMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Page> updatePageImage(
             @PathVariable Long id,

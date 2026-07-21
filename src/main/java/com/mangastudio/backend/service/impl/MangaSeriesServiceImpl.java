@@ -236,7 +236,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         publishApprovedSeries(series);
     }
 
-    // [BỔ SUNG] Cập nhật thông tin (Metadata)
+    // Updates series metadata.
     @Override
     @Transactional
     public MangaSeriesResponse updateSeriesMetadata(Long seriesId, Long currentUserId, MangaSeriesUpdateRequest request) {
@@ -258,7 +258,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         return mapToResponse(updatedSeries);
     }
 
-    // [BỔ SUNG] Xóa dự án truyện
+    // Deletes a manga project.
     @Override
     @Transactional
     public void deleteSeries(Long seriesId, Long currentUserId) {
@@ -377,19 +377,19 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
         return mapToResponse(mangaSeriesRepository.save(series));
     }
 
-    // [FE-17] Triển khai logic phán quyết của Admin
+    // [FE-17] Applies the Admin's final decision.
     @Override
     @Transactional
     public MangaSeriesResponse adminApproveSeries(Long seriesId, boolean isApproved) {
         MangaSeries series = mangaSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new RuntimeException("Error: Manga Series not found"));
 
-        // Khóa bảo vệ 1: Truyện phải đang ở giai đoạn REVIEWING mới được xét duyệt
+        // Guard 1: the series must be in REVIEWING status.
         if (!"REVIEWING".equalsIgnoreCase(series.getStatus())) {
             throw new RuntimeException("Error: The series must be in 'REVIEWING' status for Admin decision.");
         }
 
-        // Khóa bảo vệ 2: Nếu Admin bấm Đồng ý (true), kiểm tra xem Hội đồng có phiếu thuận nào không
+        // Guard 2: approval requires at least one favorable Editorial Board vote.
         if (isApproved) {
             long approvedVotes = boardVoteRepository.countByMangaSeriesIdAndIsApproved(seriesId, true);
             if (approvedVotes == 0) {
@@ -397,7 +397,7 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
             }
         }
 
-        // Chốt trạng thái: Đồng ý -> APPROVED | Từ chối -> REJECTED
+        // Final state: approved -> APPROVED; rejected -> REJECTED.
         series.setStatus(isApproved ? "APPROVED" : "REJECTED");
         MangaSeries updatedSeries = mangaSeriesRepository.save(series);
 
@@ -521,18 +521,18 @@ public class MangaSeriesServiceImpl implements MangaSeriesService {
 
     @Override
     public Page<MangaSeriesResponse> getSeriesByStatus(String status, int page, int size) {
-        // Sắp xếp truyện mới nhất lên đầu (theo createdAt giảm dần)
+        // Sort newest series first by createdAt descending.
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         
         Page<MangaSeries> seriesPage;
         if (status != null && !status.isBlank()) {
             seriesPage = mangaSeriesRepository.findByStatus(status.toUpperCase(), pageable);
         } else {
-            // Nếu Frontend không truyền status, mặc định lấy toàn bộ sàn
+            // Return the entire catalog when the frontend does not provide a status.
             seriesPage = mangaSeriesRepository.findAll(pageable);
         }
 
-        // Chuyển đổi từ Page<MangaSeries> sang Page<MangaSeriesResponse>
+        // Map Page<MangaSeries> to Page<MangaSeriesResponse>.
         return seriesPage.map(this::mapToResponse);
     }
 

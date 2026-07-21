@@ -24,7 +24,7 @@ public class UserDetailsImpl implements UserDetails {
     @JsonIgnore
     private String password;
 
-    // [BỔ SUNG FE-03]
+    // [FE-03] Account status support.
     private boolean isActive;
 
     private Collection<? extends GrantedAuthority> authorities;
@@ -39,7 +39,7 @@ public class UserDetailsImpl implements UserDetails {
                 user.getUsername(),
                 user.getEmail(),
                 user.getPasswordHash(),
-                user.getIsActive(), // Truyền trạng thái vào đây
+                user.getIsActive(), // Preserve the account status.
                 authorities
         );
     }
@@ -62,7 +62,7 @@ public class UserDetailsImpl implements UserDetails {
     @Override
     public boolean isCredentialsNonExpired() { return true; }
 
-    // [BỔ SUNG FE-03] Chốt chặn Security: Trả về false sẽ lập tức cấm User đăng nhập
+    // [FE-03] Returning false blocks the user from signing in immediately.
     @Override
     public boolean isEnabled() { return isActive; }
 

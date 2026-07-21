@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
     
-    // Tìm toàn bộ công việc do một Mangaka giao, kèm metadata để frontend hiển thị Series/Page/Assistant.
+    // Finds every task assigned by a Mangaka, including Series/Page/Assistant display metadata.
     @Query("SELECT DISTINCT t FROM Task t " +
            "LEFT JOIN FETCH t.assistant assistant " +
            "LEFT JOIN FETCH t.mangaka mangaka " +
@@ -20,7 +20,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
            "WHERE t.mangaka.id = :mangakaId ORDER BY t.createdAt DESC")
     List<Task> findByMangakaId(@Param("mangakaId") Long mangakaId);
     
-    // Tìm toàn bộ công việc được phân công cho một Assistant, kèm metadata để frontend hiển thị Series/Page/Assistant.
+    // Finds every task assigned to an Assistant, including Series/Page/Assistant display metadata.
     @Query("SELECT DISTINCT t FROM Task t " +
            "LEFT JOIN FETCH t.assistant assistant " +
            "LEFT JOIN FETCH t.mangaka mangaka " +
@@ -42,7 +42,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
            "WHERE series.tantou.id = :tantouId ORDER BY t.createdAt DESC")
     List<Task> findByAssignedTantouId(@Param("tantouId") Long tantouId);
     
-    // Lấy Task dựa trên Hitbox (Vì quan hệ là 1-1)
+    // Finds a task by its one-to-one hitbox relationship.
     Task findByHitboxId(Long hitboxId);
 
     @Query("SELECT DISTINCT t FROM Task t " +
