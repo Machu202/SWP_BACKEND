@@ -21,7 +21,6 @@ import com.mangastudio.backend.security.AuthTokenFilter;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    // TODO: Uncomment these lines after creating the security components
     private final AuthEntryPointJwt unauthorizedHandler;
     private final AuthTokenFilter authTokenFilter;
 

@@ -1,0 +1,286 @@
+===== FILE: CacheConfig.java ===== 
+package com.mangastudio.backend.config;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * Spring Boot 4 does not create a cache provider merely because
+ * {@code @EnableCaching} is present. Provide a small in-process cache for the
+ * low-volume System Parameters table while allowing deployments to replace it
+ * later with Redis or another CacheManager.
+ */
+@Configuration(proxyBeanMethods = false)
+public class CacheConfig {
+
+    @Bean
+    @ConditionalOnMissingBean(CacheManager.class)
+    public CacheManager cacheManager() {
+        return new ConcurrentMapCacheManager("systemParameters", "systemParameterList");
+    }
+}
+
+===== FILE: CloudinaryConfig.java ===== 
+package com.mangastudio.backend.config;
+
+import com.cloudinary.Cloudinary;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Configuration
+public class CloudinaryConfig {
+
+    @Value("${cloudinary.cloud-name}")
+    private String cloudName;
+
+    @Value("${cloudinary.api-key}")
+    private String apiKey;
+
+    @Value("${cloudinary.api-secret}")
+    private String apiSecret;
+
+    @Bean
+    public Cloudinary cloudinary() {
+        Map<String, String> config = new HashMap<>();
+        config.put("cloud_name", cloudName);
+        config.put("api_key", apiKey);
+        config.put("api_secret", apiSecret);
+        return new Cloudinary(config);
+    }
+}
+===== FILE: CorsConfig.java ===== 
+package com.mangastudio.backend.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.Arrays;
+
+@Configuration
+public class CorsConfig {
+
+    private final String[] allowedOrigins;
+
+    public CorsConfig(@Value("${app.cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .toArray(String[]::new);
+    }
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/api/**")
+                        .allowedOrigins(allowedOrigins)
+                        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                        .allowedHeaders("*")
+                        .allowCredentials(true)
+                        .maxAge(3600);
+            }
+        };
+    }
+}
+
+===== FILE: JacksonCompatibilityConfig.java ===== 
+package com.mangastudio.backend.config;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * Spring Boot 4 uses its newer Jackson stack for HTTP auto-configuration, while
+ * existing project code and jjwt-jackson still use the Jackson 2
+ * com.fasterxml type. SystemParameterService needs only readTree validation,
+ * so expose one explicit compatibility bean without replacing an application-
+ * provided mapper when one already exists.
+ */
+@Configuration(proxyBeanMethods = false)
+public class JacksonCompatibilityConfig {
+
+    @Bean
+    @ConditionalOnMissingBean(ObjectMapper.class)
+    public ObjectMapper legacyObjectMapper() {
+        return new ObjectMapper();
+    }
+}
+
+===== FILE: SecurityConfig.java ===== 
+package com.mangastudio.backend.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.mangastudio.backend.security.AuthEntryPointJwt;
+import com.mangastudio.backend.security.AuthTokenFilter;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    private final AuthEntryPointJwt unauthorizedHandler;
+    private final AuthTokenFilter authTokenFilter;
+
+    public SecurityConfig(AuthEntryPointJwt unauthorizedHandler, AuthTokenFilter authTokenFilter) {
+        this.unauthorizedHandler = unauthorizedHandler;
+        this.authTokenFilter = authTokenFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        // Defines the algorithm used to hash passwords before saving to the database
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                // Disable CSRF because we use JWT (Stateless)
+                .csrf(csrf -> csrf.disable())
+
+                // Enable CORS using the CorsConfig setup
+                .cors(cors -> cors.configure(http))
+
+                // TODO: Uncomment this to handle unauthorized access errors (401)
+                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
+
+                // Set session management to stateless (no server-side sessions)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // Configure route permissions
+                .authorizeHttpRequests(auth -> auth
+                        // Allow public access to Authentication APIs
+                        .requestMatchers("/v3/api-docs").permitAll()
+
+                        .requestMatchers(
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/request-otp",
+                                "/api/v1/auth/verify-otp",
+                                "/api/v1/auth/forgot-password/request",
+                                "/api/v1/auth/forgot-password/reset",
+                                "/api/v1/auth/google",
+                                "/api/v1/runtime-settings"
+                        ).permitAll()
+                        // Allow public access to Swagger UI documentation
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // [FE-09] Allow WebSocket handshake requests.
+                        .requestMatchers("/ws/**").permitAll()
+                        // Allow public readers to record views and access public statistics.
+                        .requestMatchers("/api/v1/telemetry/**").permitAll()
+                        // All other API requests must be authenticated with a valid JWT
+                        .anyRequest().authenticated());
+
+        // TODO: Uncomment this to add the JWT filter before the standard authentication
+        // filter
+        http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
+
+===== FILE: SwaggerConfig.java ===== 
+package com.mangastudio.backend.config;
+
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        final String securitySchemeName = "bearerAuth";
+        
+        return new OpenAPI()
+                .info(new Info().title("MangaSystem API")
+                        .description("API documentation for the Manga Studio Workflow System")
+                        .version("v1.0.0"))
+                .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
+                .components(
+                        new Components()
+                                .addSecuritySchemes(securitySchemeName,
+                                        new SecurityScheme()
+                                                .name(securitySchemeName)
+                                                .type(SecurityScheme.Type.HTTP)
+                                                .scheme("bearer")
+                                                .bearerFormat("JWT")
+                                )
+                );
+    }
+}
+===== FILE: WebSocketConfig.java ===== 
+package com.mangastudio.backend.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+import java.util.Arrays;
+
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final String[] allowedOrigins;
+
+    public WebSocketConfig(@Value("${app.cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .toArray(String[]::new);
+    }
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                .setAllowedOrigins(allowedOrigins)
+                .withSockJS();
+    }
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.enableSimpleBroker("/topic", "/queue");
+        registry.setApplicationDestinationPrefixes("/app");
+        registry.setUserDestinationPrefix("/user");
+    }
+}
+
